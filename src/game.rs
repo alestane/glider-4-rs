@@ -1,12 +1,26 @@
-use sdl2::{pixels::Color, render::Texture, rect::Rect};
-use glider::{Room, ObjectKind};
+use sdl2::{pixels::Color, render::{Canvas, Texture}, video::Window};
+use glider::{Room, ObjectKind, Side, Entrance, Object};
 use crate::{atlas, draw, SCREEN_HEIGHT, SCREEN_WIDTH};
 
 fn appearance(kind: &ObjectKind) -> Option<(&'static str, usize)> {
     Some(match kind {
+        ObjectKind::Clock(_) => ("collectible", atlas::CLOCK),
         ObjectKind::FloorVent { .. } => ("blowers", atlas::UP),
-        _ => return None
+        ObjectKind::Macintosh => ("visual", atlas::COMPUTER),
+        what => { eprintln!("no sprite: {what:?}"); return None }
     })
+}
+
+fn show(display: &mut Canvas<Window>, object: &Object, atlas: &atlas::Atlas) {
+    match appearance(&object.object_is) {
+        Some((name, index)) => {
+            let (wedge, tex) = atlas.get(name);
+            let _ = display.copy(tex, Some(wedge[index].into()), Some(crate::space::Rect::from(object.bounds).into()));
+        }
+        None => {
+            draw::thing(display, object, &atlas);
+        }
+    }
 }
 
 pub fn run(context: &mut crate::App, theme: Texture, room: &Room) {
@@ -18,18 +32,11 @@ pub fn run(context: &mut crate::App, theme: Texture, room: &Room) {
         |display| {
             draw::wall(display, &theme, &room.tile_order);
             for object in room.objects.iter().filter(|&object| !object.dynamic()) {
-                match appearance(&object.object_is) {
-                    Some((name, index)) => {
-                        let (wedge, tex) = context.sprites.get(name);
-                        let _ = display.copy(tex, Some(wedge[index].into()), Some(crate::space::Rect::from(object.bounds).into()));
-                    }
-                    None => {
-                        draw::thing(display, object, &context.sprites);
-                    }
-                }
+                show(display, object, &context.sprites);
             }
         }
     );
+    let play = room.start(Entrance::Flying(Side::Left), true, true);
     'game: loop {
         for event in context.events.poll_iter() {
             use sdl2::event::Event;
@@ -41,6 +48,9 @@ pub fn run(context: &mut crate::App, theme: Texture, room: &Room) {
         display.set_draw_color(Color::RGB(0, 0, 0));
         display.clear();
         let _ = display.copy(&backdrop, None, None);
+        for item in play.active_items().filter(|&o| o.dynamic()) {
+            show(display, item, &context.sprites);
+        }
         display.present();
     }
 }
