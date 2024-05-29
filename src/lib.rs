@@ -88,6 +88,7 @@ pub enum Vertical {
 pub use room::Room;
 pub use house::House; 
 pub use object::{Object, ObjectKind};
+pub use play::Entrance;
 
 mod object;
 mod room;
