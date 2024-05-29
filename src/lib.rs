@@ -80,6 +80,16 @@ pub enum Side {
     Left, Right,
 }
 
+impl std::ops::Neg for Side {
+    type Output = Self;
+    fn neg(self) -> Self::Output {
+        match self {
+            Self::Left => Self::Right,
+            Self::Right => Self::Left,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Vertical {
     Down, Up, 
