@@ -27,14 +27,14 @@ impl Room {
         self.objects.iter().enumerate().filter_map(|(id, o)| o.collidable().then_some(id))
     }
     pub fn start(&self, from: Entrance, _lights: bool, _air: bool) -> Play {
-        let (x, y) = match from {
-            Entrance::Flying(side) => (match side { Side::Left => 24, Side::Right => 488}, 50),
-            Entrance::Appearing(target) => {let bounds = self.objects[target as usize].bounds; (bounds.x(), bounds.y())}
+        let (x, y, facing) = match from {
+            Entrance::Flying(side) => (match side { Side::Left => 24, Side::Right => 488}, 50, -side),
+            Entrance::Appearing(target) => {let bounds = self.objects[target as usize].bounds; (bounds.x(), bounds.y(), Side::Right)}
         };
         Play { 
             room: self,
             items: BTreeSet::<usize>::from_iter(self.collider_ids()),
-            facing: Side::Right,
+            facing: facing,
             player_h: x,
             player_v: y,
         }
