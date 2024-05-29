@@ -51,6 +51,12 @@ pub fn run(context: &mut crate::App, theme: Texture, room: &Room) {
         for item in play.active_items().filter(|&o| o.dynamic()) {
             show(display, item, &context.sprites);
         }
+        let (position, facing) = play.player();
+        let (slides, pixels) = context.sprites.get(match facing {Side::Left => "glider.left", Side::Right => "glider.right"} );
+        let frame: sdl2::rect::Rect = slides[atlas::LEVEL].into();
+        display.copy(pixels, frame, frame.centered_on((position.0 as i32, position.1 as i32))).ok();
+        let frame: sdl2::rect::Rect = slides[atlas::SHADOW].into();
+        display.copy(pixels, frame, frame.centered_on((position.0 as i32, crate::VERT_FLOOR as i32))).ok();
         display.present();
     }
 }
