@@ -50,4 +50,8 @@ impl<'a> Play<'a> {
         self.items.iter()
             .map(|&index| &self.room.objects[index] )
     }
+
+    pub fn player(&self) -> ((u16, u16), Side) {
+        ((self.player_h, self.player_v), self.facing)
+    }
 }
