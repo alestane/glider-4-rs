@@ -1,6 +1,6 @@
 use crate::Rect;
 
-use super::{Input, Outcome, room::{Room, Enemy}, Side};
+use super::{Input, Outcome, room::{Room, Enemy}, Side, Object};
 use std::{collections::BTreeSet, num::NonZeroU16};
 
 pub struct Play<'a> {
@@ -44,5 +44,10 @@ impl Room {
 impl<'a> Play<'a> {
     pub fn frame(&mut self, _actions: &[Input]) -> Outcome {
         Outcome::Continue
+    }
+
+    pub fn active_items(&self) -> impl Iterator<Item = &Object> {
+        self.items.iter()
+            .map(|&index| &self.room.objects[index] )
     }
 }
