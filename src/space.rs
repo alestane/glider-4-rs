@@ -86,3 +86,9 @@ impl From<Rect> for sdl2::rect::Rect {
         }
     }
 }
+
+impl From<Rect> for Option<sdl2::rect::Rect> {
+    fn from(value: Rect) -> Self {
+        Some(value.into())
+    }
+}
