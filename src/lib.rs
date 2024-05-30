@@ -54,13 +54,15 @@ impl From<(u16, u16, u16, u16)> for Rect {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum Input {
-    Left, 
-    Right,
+    Go(Side),
     Flip,
     Shoot,
+    Zoom,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum Outcome {
     Continue,
     Dead,
@@ -78,6 +80,16 @@ pub struct Success {
 #[derive(Debug, Clone, Copy)]
 pub enum Side {
     Left, Right,
+}
+
+impl std::ops::Mul<i16> for Side {
+    type Output = i16;
+    fn mul(self, rhs: i16) -> Self::Output {
+        match self {
+            Self::Left => -rhs,
+            Self::Right => rhs,
+        }
+    }
 }
 
 impl std::ops::Neg for Side {
@@ -98,7 +110,7 @@ pub enum Vertical {
 pub use room::Room;
 pub use house::House; 
 pub use object::{Object, ObjectKind};
-pub use play::Entrance;
+pub use play::{Entrance, Play};
 
 mod object;
 mod room;
