@@ -60,6 +60,14 @@ impl Object {
         match self.object_is { ObjectKind::Painting => false, _ => true }
     }
 
+    pub fn active_area(&self) -> Rect {
+        type Kind = ObjectKind;
+        match self.object_is {
+            Kind::FloorVent { height } => Rect{_top: height, _bottom: self.bounds._top, ..self.bounds},
+            _ => self.bounds
+        }
+    }
+
     pub fn dynamic(&self) -> bool {
         match self.object_is {
             ObjectKind::Clock(_) |
