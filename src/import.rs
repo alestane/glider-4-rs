@@ -60,6 +60,7 @@ impl ObjectKind {
             _ => return Err(Some( () ) ) 
         })
     }
+
 }
 
 impl From<[u16; 4]> for Rect {
@@ -104,8 +105,8 @@ impl TryFrom<u16> for Enemy {
     }
 }
 
-impl From<(usize, RoomData)> for Room {
-    fn from((id, value): (usize, RoomData)) -> Self {
+impl From<(u16, RoomData)> for Room {
+    fn from((id, value): (u16, RoomData)) -> Self {
         let n_objects = u16::from_be_bytes(value.object_count) as usize;
         Self {
             name: string_from_pascal(&value.name),
@@ -148,7 +149,7 @@ impl From<HouseData> for House {
             pict_file: string_from_pascal(&value.pict_name),
             next_file: string_from_pascal(&value.next_file),
             first_file: string_from_pascal(&value.first_file), 
-            rooms: Vec::from_iter(value.rooms[..n_rooms].iter().enumerate().map(|(i, r)| Room::from((i, *r))))
+            rooms: Vec::from_iter(value.rooms[..n_rooms].iter().enumerate().map(|(i, r)| Room::from((i as u16, *r))))
         }
     }
 }

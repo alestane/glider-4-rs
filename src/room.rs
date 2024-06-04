@@ -1,8 +1,12 @@
 use super::{*, object::Object};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct RoomId(pub usize);
+pub struct RoomId(pub u16);
+
+impl std::convert::From<RoomId> for Option<u16> {
+    fn from(value: RoomId) -> Self { Some(value.0) }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum Enemy {
@@ -12,7 +16,7 @@ pub enum Enemy {
 }
 
 #[repr(u16)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Deactivated {
     Air = 1,
     Lights = 2,
@@ -33,9 +37,9 @@ pub struct Room {
     objects: Vec<Object>,
 }
 
-impl TryFrom<(usize, &[u8])> for Room {
+impl TryFrom<(u16, &[u8])> for Room {
     type Error = ();
-    fn try_from(data: (usize, &[u8])) -> Result<Self, Self::Error> {
+    fn try_from(data: (u16, &[u8])) -> Result<Self, Self::Error> {
         if data.1.len() < 58 {
             Err( Self::Error::default() )
         } else {
