@@ -1,11 +1,11 @@
 use super::*;
 use super::room::RoomId;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(transparent)]
 pub struct ObjectId(pub usize);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ObjectKind {
     Table,
     Shelf,
@@ -44,7 +44,9 @@ pub enum ObjectKind {
     Mirror,
     Basket,
     Macintosh,
-    Stair(Vertical, RoomId)
+    Stair(Vertical, RoomId),
+
+    Wall,
 }
 
 #[disclose]
@@ -63,7 +65,7 @@ impl Object {
     pub fn active_area(&self) -> Rect {
         type Kind = ObjectKind;
         match self.object_is {
-            Kind::FloorVent { height } => Rect{_top: height, _bottom: self.bounds._top, ..self.bounds},
+            Kind::FloorVent { height } | Kind::Candle {height} => Rect{_top: height, _bottom: self.bounds._top, ..self.bounds},
             _ => self.bounds
         }
     }
