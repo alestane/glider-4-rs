@@ -3,36 +3,36 @@
 #[macro_use]
 extern crate disclose;
 
-use std::{num::NonZero, time::{Duration, SystemTime}};
+use std::{num::NonZero, ops::Range, time::{Duration, SystemTime}};
 
 #[disclose]
 mod prelude {
-    use super::{Rect, Input, Outcome, Success, Side, Vertical, Room, House, Environment, Update};
+    use super::{Rect, Input, Outcome, Success, Side, Vertical, Room, House, Environment, Update, room::Enemy};
 }
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rect {
-    _left: u16, 
-    _top: u16, 
-    _right: u16, 
+    _left: u16,
+    _top: u16,
+    _right: u16,
     _bottom: u16,
 }
 
 impl Rect {
     pub const fn new(left: u16, top: u16, right: u16, bottom: u16) -> Self {
-        let (left, top) = (left.min(right), top.min(bottom));
+        let (left, top) = (if left < right {left} else {right}, if top < bottom {top} else {bottom});
         Self {
             _left: left,
             _top: top,
-            _right: right.max(left + 1),
-            _bottom: bottom.max(top + 1),
+            _right: if right == left {left + 1} else {right},
+            _bottom: if bottom == top {top + 1} else {bottom},
         }
     }
 
     pub const fn cropped_on(center: (u16, u16), width: u16, height: u16) -> Self {
         Rect{
-            _left: center.0.saturating_sub(width / 2), 
+            _left: center.0.saturating_sub(width / 2),
             _top: center.1.saturating_sub(height / 2),
             _right: center.0.saturating_add((width + 1) / 2),
             _bottom: center.1.saturating_add((height + 1) / 2),
@@ -86,6 +86,24 @@ impl From<(u16, u16, u16, u16)> for Rect {
     }
 }
 
+impl<I: Into<(i16, i16)>> std::ops::Shr<I> for Rect {
+    type Output = Rect;
+    fn shr(mut self, rhs: I) -> Self::Output {
+        self >>= rhs.into();
+        self
+    }
+}
+
+impl<I: Into<(i16, i16)>> std::ops::ShrAssign<I> for Rect {
+    fn shr_assign(&mut self, rhs: I) {
+        let rhs = rhs.into();
+        self._left = self._left.saturating_add_signed(rhs.0);
+        self._right = self._right.saturating_add_signed(rhs.0);
+        self._top = self._top.saturating_add_signed(rhs.1);
+        self._bottom = self._bottom.saturating_add_signed(rhs.1);
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Input {
     Go(Side),
@@ -99,7 +117,7 @@ pub enum Environment {
     Ball,
     Outlet,
     Fish,
-    Drip, 
+    Drip,
     Guitar,
     Toast,
     Grease,
@@ -107,7 +125,7 @@ pub enum Environment {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Update {
-    Score(u32),
+    Score(u16),
     Life,
     Bands(u8),
     Energy(u8),
@@ -115,13 +133,18 @@ pub enum Update {
     Zoom,
     Start(Environment),
     Bump,
+    Fade(bool),
+    Turn(Side),
+    Lights,
+    Air,
+    Burn,
 }
 
 #[derive(Debug, Clone)]
 pub enum Outcome {
     Continue(Option<Vec<Update>>),
     Dead,
-    Leave{score: u32, destination: Option<u16>},
+    Leave{score: u32, destination: Option<(i16, Entrance)>},
 }
 
 #[derive(Debug, Clone)]
@@ -157,13 +180,13 @@ impl std::ops::Neg for Side {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Vertical {
-    Down, Up, 
+    Down, Up,
 }
 
 pub use room::Room;
-pub use house::House; 
+pub use house::House;
 pub use object::{Object, ObjectKind};
 pub use play::{Entrance, Play};
 
