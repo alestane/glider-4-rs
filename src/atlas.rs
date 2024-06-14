@@ -1,5 +1,7 @@
 use std::{ops::Range, collections::HashMap};
 
+use sdl2::{image::LoadTexture, render::Texture};
+
 use crate::space::Rect;
 
 const ITEMS: [Rect; 97] = [
@@ -61,7 +63,7 @@ const ITEMS: [Rect; 97] = [
     Rect::new_signed(48, 127, 112, 297),    // guitar
     Rect::new_signed(192, 71, 208, 100),    // shelf stanchion
     Rect::new_signed(448, 270, 511, 341),   // wastebasket
-    Rect::new_signed(408, 53, 510, 146),    // painting
+    Rect::new_signed(408, 0, 510, 92),    // painting
     Rect::new_signed(256, 209, 301, 267),   // macintosh
     
     Rect::new_signed(142, 0, 160, 26),      // light switch
@@ -245,4 +247,10 @@ pub fn glider_sprites<'a>(pixels: sdl2::render::Texture<'a>) -> Atlas<'a> {
         pixels,
         blocks,
     }
+}
+
+use sdl2::{video::WindowContext, render::TextureCreator};
+
+pub fn rooms(handler: &TextureCreator<WindowContext>) -> HashMap<usize, Texture> {
+    HashMap::from_iter(crate::resources::color::assets().iter().filter_map(|(&index, &bytes)| (index >= 200).then(|| handler.load_texture_bytes(bytes).ok().map(|tx| (index, tx)))?))
 }
