@@ -3,7 +3,7 @@ use super::{*, room::*, object::*, house::*};
 fn string_from_pascal(bytes: &[u8]) -> String {
     String::from_utf8_lossy(match bytes {
         [len, chars@..] if *len as usize <= chars.len() => &chars[..*len as usize],
-        [_, chars@..] => chars, 
+        [_, chars@..] => chars,
         _ => return String::new()
     }).to_string()
 }
@@ -12,7 +12,7 @@ impl ObjectKind {
     pub fn try_from_raw(kind: u16, amount: u16, extra: u16) -> Result<Self, Option<()>> {
         use ObjectKind::*;
 
-        Ok(match kind { 
+        Ok(match kind {
              0 => return Err(None),
 
              1 => Table,
@@ -50,14 +50,14 @@ impl ObjectKind {
             36 => Teakettle{range: amount},
             37 => Window,
 
-            40 => Painting, 
+            40 => Painting,
             41 => Mirror,
             42 => Basket,
             43 => Macintosh,
             44 => Stair(Vertical::Up, RoomId(amount.into())),
             45 => Stair(Vertical::Down, RoomId(amount.into())),
 
-            _ => return Err(Some( () ) ) 
+            _ => return Err(Some( () ) )
         })
     }
 
@@ -139,7 +139,7 @@ impl From<HouseData> for House {
                     .zip(value.hi_names.iter().zip(value.hi_rooms.iter()))
                     .map(|((score, level), (name, room))|
                         Success{
-                            score: u32::from_be_bytes(*score), 
+                            score: u32::from_be_bytes(*score),
                             level: u16::from_be_bytes(level),
                             name: string_from_pascal(name),
                             room: string_from_pascal(room),
@@ -148,7 +148,7 @@ impl From<HouseData> for House {
                 ),
             pict_file: string_from_pascal(&value.pict_name),
             next_file: string_from_pascal(&value.next_file),
-            first_file: string_from_pascal(&value.first_file), 
+            first_file: string_from_pascal(&value.first_file),
             rooms: Vec::from_iter(value.rooms[..n_rooms].iter().enumerate().map(|(i, r)| Room::from((i as u16, *r))))
         }
     }
