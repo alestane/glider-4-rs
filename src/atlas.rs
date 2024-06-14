@@ -9,7 +9,7 @@ const ITEMS: [Rect; 97] = [
 
     Rect::new_signed(0,  0, 48, 20),        // forward right
     Rect::new_signed(0, 21, 48, 41),        // backward right
-    
+
     Rect::new_signed(414,  97, 462, 117),   // fade right
     Rect::new_signed(414, 118, 462, 138),
     Rect::new_signed(414, 139, 462, 159),
@@ -20,7 +20,7 @@ const ITEMS: [Rect; 97] = [
 
     Rect::new_signed(256,  24, 304, 60),    // burn right
     Rect::new_signed(256,  61, 304, 97),
-    
+
     Rect::new_signed(256, 12, 304, 23),     // shadow left
 
     Rect::new_signed(0, 42, 48, 62),        // forward left
@@ -43,7 +43,7 @@ const ITEMS: [Rect; 97] = [
     Rect::new_signed(208,  63, 256, 83),
     Rect::new_signed(208,  84, 256, 104),
     Rect::new_signed(208, 105, 256, 125),
-    
+
     Rect::new_signed(0, 84, 48, 96),        // ceiling vent
     Rect::new_signed(0, 97, 48, 110),       // ceiling duct
     Rect::new_signed(0, 111, 48, 124),      // floor vent
@@ -65,14 +65,14 @@ const ITEMS: [Rect; 97] = [
     Rect::new_signed(448, 270, 511, 341),   // wastebasket
     Rect::new_signed(408, 0, 510, 92),    // painting
     Rect::new_signed(256, 209, 301, 267),   // macintosh
-    
+
     Rect::new_signed(142, 0, 160, 26),      // light switch
     Rect::new_signed(144, 27, 162, 54),     // thermostat
     Rect::new_signed(160, 264, 192, 289),   // outlet
     Rect::new_signed(160, 290, 192, 315),   // spark 1
     Rect::new_signed(160, 316, 192, 341),   // spark 2
-    Rect::new_signed(144, 082, 162, 108),   // button switch 
-    
+    Rect::new_signed(144, 082, 162, 108),   // button switch
+
     Rect::new_signed(0, 147, 38, 174),      // toaster
     Rect::new_signed(304, 84, 336, 115),    // toast
     Rect::new_signed(304, 116, 336, 115),   //   "
@@ -90,22 +90,22 @@ const ITEMS: [Rect; 97] = [
     Rect::new_signed(144, 189, 160, 201),   // candle flame
     Rect::new_signed(144, 202, 160, 214),
     Rect::new_signed(144, 215, 160, 227),
-    
+
     Rect::new_signed(192, 0, 208, 13),      // drip
     Rect::new_signed(192, 14, 208, 27),
     Rect::new_signed(192, 28, 208, 41),
     Rect::new_signed(192, 42, 208, 55),
     Rect::new_signed(192, 56, 208, 70),
-    
+
     Rect::new_signed(112, 76, 144, 108),    // basketball
-    
+
     Rect::new_signed(112, 139, 144, 168),   // grease
     Rect::new_signed(112, 169, 144, 198),
     Rect::new_signed(112, 199, 144, 228),
-    
+
     Rect::new_signed(304, 0, 368, 22),      // dart
     Rect::new_signed(48, 0, 112, 22),
-    
+
     Rect::new_signed(304, 276, 336, 308),   // copter
     Rect::new_signed(160, 0, 192, 32),
     Rect::new_signed(160, 33, 192, 65),
@@ -115,12 +115,12 @@ const ITEMS: [Rect; 97] = [
     Rect::new_signed(160, 165, 192, 197),
     Rect::new_signed(160, 198, 192, 230),
     Rect::new_signed(160, 231, 192, 263),
-    
+
     Rect::new_signed(304, 309, 336, 341),
     Rect::new_signed(112, 229, 144, 261),
     Rect::new_signed(112, 262, 144, 294),
     Rect::new_signed(112, 295, 144, 327),
-    
+
     Rect::new_signed(192, 155, 208, 162),
     Rect::new_signed(192, 163, 208, 170),
     Rect::new_signed(192, 171, 208, 178),
@@ -134,7 +134,7 @@ pub const SHADOW    : usize = 0;
 pub const LEVEL     : usize = 1;
 pub const TIPPED    : usize = 2;
 pub const FADE      : Range<usize> = 3..10;
-pub const BURN      : Range<usize> = 11..13;
+pub const BURN      : Range<usize> = 10..12;
 
 const AIR           : Range<usize> = 30..37;
 pub const DOWN      : usize = 0;
@@ -159,7 +159,7 @@ pub const GUITAR    : usize = 3;
 pub const SHELF     : usize = 4;
 pub const BASKET    : usize = 5;
 pub const PAINTING  : usize = 6;
-pub const COMPUTER  : usize = 7; 
+pub const COMPUTER  : usize = 7;
 
 const POWER         : Range<usize> = 49..55;
 pub const SWITCH    : usize = 0;
@@ -233,7 +233,7 @@ pub fn glider_sprites<'a>(pixels: sdl2::render::Texture<'a>) -> Atlas<'a> {
             ("grease", &ITEMS[GREASE]),
             ("band", &ITEMS[RUBBER]),
 
-            ("toaster", &ITEMS[TOASTS]), 
+            ("toaster", &ITEMS[TOASTS]),
             ("fish", &ITEMS[GOLDFISH]),
             ("fire", &ITEMS[CANDLE_FLAME]),
             ("water", &ITEMS[WATER_DRIP]),
