@@ -1,3 +1,5 @@
+use std::slice::SliceIndex;
+
 use super::{*, object::Object};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -8,11 +10,29 @@ impl std::convert::From<RoomId> for Option<u16> {
     fn from(value: RoomId) -> Self { Some(value.0) }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Enemy {
     Dart,
     Copter,
     Balloon,
+    Flame,
+    Fish,
+    Ball,
+    Toast,
+    Shock,
+}
+
+impl From<ObjectKind> for Option<Enemy> {
+    fn from(value: ObjectKind) -> Self {
+        Some(match value {
+            ObjectKind::Candle { .. } => Enemy::Flame,
+            ObjectKind::Fishbowl { .. } => Enemy::Fish,
+            ObjectKind::Ball{ .. } => Enemy::Ball,
+            ObjectKind::Toaster { .. } => Enemy::Toast,
+            ObjectKind::Outlet { .. } => Enemy::Shock,
+            _ => return None
+        })
+    }
 }
 
 #[repr(u16)]
@@ -46,4 +66,13 @@ impl TryFrom<(u16, &[u8])> for Room {
             Ok(Self::from((data.0, import::RoomData::from_iter(data.1.iter().copied()))))
         }
     }
+}
+
+impl Room {
+    pub fn walls(&self) -> impl SliceIndex<[Object], Output=[Object]> {
+        fn step(i: Option<RoomId>) -> usize { i.is_some() as usize }
+        step(self.left_open)..=(step(self.right_open) + 1)
+    }
+
+    pub fn theme_index(&self) -> u16 { self.back_pict_id }
 }
