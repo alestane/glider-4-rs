@@ -10,4 +10,4 @@ disclose = "*"
 
 [dependencies.sdl2]
 version = "*"
-features = ["bundled", "image"]
+features = ["image"]
