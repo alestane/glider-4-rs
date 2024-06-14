@@ -1,4 +1,4 @@
-#![feature(const_trait_impl, effects, generic_arg_infer, slice_as_chunks)]
+#![feature(const_trait_impl, effects, generic_arg_infer, slice_as_chunks, iter_advance_by)]
 
 use sdl2::{image::LoadTexture, video::Window, render::Canvas, EventPump};
 
@@ -34,5 +34,6 @@ fn main() {
         sprites: atlas::glider_sprites(loader.load_texture_bytes(images[&128]).unwrap()),
         events: sdl.event_pump().unwrap(),
     };
-    game::run(&mut app, room, &test::new());
+    game::play(&mut app, &atlas::rooms(&loader), &test::house())
+        .ok();
 }
