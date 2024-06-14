@@ -4,6 +4,9 @@ use glider::{Side, Object, ObjectKind, prelude::Enemy};
 use sdl2::{pixels::{Color, PixelFormatEnum}, rect::{Point, Rect}, render::{BlendMode, Canvas, RenderTarget, Texture}, surface::Surface, video::Window};
 use crate::{SCREEN_HEIGHT, SCREEN_WIDTH, VERT_FLOOR, space, atlas::{self, Atlas}, resources};
 
+pub type Frame = Box<dyn Iterator<Item = usize>>;
+pub type Animations = HashMap<u8, Frame>;
+
 const BLACK     : Color = Color::RGB(0x00, 0x00, 0x00);
 const WHITE     : Color = Color::RGB(0xFF, 0xFF, 0xFF);
 const YELLOW    : Color = Color::RGB(0xFF, 0xFF, 0x00);
@@ -103,7 +106,7 @@ fn window_shadow(width: NonZero<u32>, height: NonZero<u32>) -> Result<Surface<'s
     };
     descreen(&mut shadow, width + 10);
     Ok(shadow)
- 
+
 }
 
 trait Illuminator {
@@ -133,13 +136,13 @@ pub trait Scribe {
     fn draw_object(&mut self, object: &Object, atlas: &atlas::Atlas);
     fn draw_sprite(&mut self, bounds: space::Rect, name: &str, index: usize, sprites: &Atlas);
     fn draw_room(&mut self, play: &glider::Play, times: &mut HashMap<u8, Box<dyn Iterator<Item = usize>>>, sprites: &Atlas, backdrop: &Texture);
-}    
+}
 
 impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = sdl2::render::TextureCreator<T>> {
     fn draw(&mut self, pixels: &Texture, source: impl Into<Option<Rect>>, dest: impl Into<Option<Rect>>) {
         self.copy(pixels, source, dest)
             .expect("failed to draw to canvas");
-    }    
+    }
 
     fn outline_rect(&mut self, bounds: Rect, fill: impl Into<Color>) -> Result<(), String> {
         self.set_draw_color(fill.into());
@@ -179,12 +182,12 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
     fn draw_wall(&mut self, theme: &Texture, tiles: &[u16]) {
         const TILE_WIDTH: u32 = SCREEN_WIDTH / 8;
         for (index, &slice) in tiles.iter().enumerate() {
-            self.draw(&theme, 
-                Rect::new(slice as i32 * TILE_WIDTH as i32, 0, TILE_WIDTH, SCREEN_HEIGHT), 
+            self.draw(&theme,
+                Rect::new(slice as i32 * TILE_WIDTH as i32, 0, TILE_WIDTH, SCREEN_HEIGHT),
                 Rect::new(index as i32 * TILE_WIDTH as i32, 0, TILE_WIDTH, SCREEN_HEIGHT)
-            );    
-        }    
-    }    
+            );
+        }
+    }
 
     fn draw_table(&mut self, bounds: space::Rect, sprite: (space::Rect, &Texture)) -> Result<(), String> {
         let bounds = sdl2::rect::Rect::from(bounds);
@@ -202,7 +205,7 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         let shadow_bounds = { let mut r = bounds; r.offset(drop / -5, drop); r};
         let shadow = unsafe { table_shadow(NonZero::new_unchecked(bounds.width()), NonZero::new_unchecked(bounds.height()))}.or_else(|e| Err(e.to_string()))?;
         self.copy(&shadow.as_texture(&builder).map_err(|e| e.to_string())?, None, shadow_bounds)?;
-        
+
         let center = bounds.center().x();
         let post = Rect::new(center - 2, bounds.bottom(), 5, (VERT_FLOOR - 2).saturating_add_signed(-bounds.bottom()));
         self.set_draw_color(BLACK);
@@ -211,20 +214,20 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         self.draw_line((center + 1, post.top()), (center + 1, post.bottom()))?;
         self.set_draw_color(BROWN_LT);
         self.draw_line((center, post.top()), (center, post.bottom()))?;
-        
+
         let frame: Rect = sprite.0.into();
         self.copy(sprite.1, frame, frame.centered_on((center, VERT_FLOOR as i32 + 4)))?;
-        
+
         Ok(())
     }
-    
+
     fn draw_shelf(&mut self, bounds: space::Rect, sprite: (space::Rect, &Texture)) -> Result<(), String> {
         let bounds: Rect = bounds.into();
 
         let shadow = unsafe { shelf_shadow(NonZero::new_unchecked(bounds.width()), NonZero::new_unchecked(bounds.height()))}.or_else(|e| Err(e.to_string()))?;
         let builder = self.get_builder();
         self.copy(&shadow.as_texture(&builder).map_err(|e| e.to_string())?, None, Rect::new(bounds.left() - 15, bounds.top(), bounds.width() + 15, bounds.height() + 15))?;
-        
+
         self.set_draw_color(BROWN_LT);
         self.fill_rect(bounds)?;
         self.draw_line((bounds.left() + 1, bounds.bottom() - 2), (bounds.right() - 1, bounds.bottom() -2))?;
@@ -351,7 +354,7 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
     }
 
     fn draw_thing(&mut self, object: &Object, decor: &Atlas) {
-        match 
+        match
             match object.object_is {
                 ObjectKind::Table => {
                     let (frame, pixels) = decor.get("visual");
@@ -390,8 +393,8 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         }
     }
 
-    fn draw_room(&mut self, play: &glider::Play, times: &mut HashMap<u8, Box<dyn Iterator<Item = usize>>>, sprites: &Atlas, backdrop: &Texture) {
-        fn advance(lookup: &mut HashMap<u8, Box<dyn Iterator<Item = usize>>>, id: u8) -> Option<usize> {
+    fn draw_room(&mut self, play: &glider::Play, times: &mut Animations, sprites: &Atlas, backdrop: &Texture) {
+        fn advance(lookup: &mut Animations, id: u8) -> Option<usize> {
             let index = lookup.get_mut(&id).and_then(|a| a.next());
             if index.is_none() {
                 lookup.remove(&id);
@@ -402,9 +405,10 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         self.set_draw_color(Color::RGB(0, 0, 0));
         self.clear();
         self.draw(&backdrop, None, None);
-        let (player_position, facing, backward) = play.player();
+        let (mut player_position, facing, backward) = play.player();
         let (slides, pixels) = sprites.get(match facing {Side::Left => "glider.left", Side::Right => "glider.right"} );
         let frame: sdl2::rect::Rect = slides[advance(times, 0).unwrap_or(if backward {atlas::TIPPED} else {atlas::LEVEL})].into();
+        if frame.height() > 20 {player_position.1 -= frame.height() as i16 / 2 - 10};
         for item in play.active_items().filter(|&o| o.object_is == ObjectKind::Mirror) {
             let bounds: Rect = space::Rect::from(item.bounds).into();
             self.set_clip_rect(Rect::new(bounds.left() + 3, bounds.top() + 3, bounds.width() - 6, bounds.height() - 6));
@@ -419,12 +423,12 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
                 Enemy::Flame => {
                     let frame = if let Some(frame) = times.get_mut(&id).and_then(|seq| seq.next()) {
                         frame
-                    } else { 
+                    } else {
                         let skip = id as usize % 3;
                         let mut c = (0..3).cycle();
                         c.advance_by(skip).ok();
                         let frame = unsafe{ c.next().unwrap_unchecked() };
-                        times.insert(id, Box::new(c)); 
+                        times.insert(id, Box::new(c));
                         frame
                     };
                     self.draw_sprite(space::Rect::from(bounds).into(), "fire", frame, sprites);
@@ -437,4 +441,4 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         self.draw(pixels, frame, frame.centered_on((player_position.0 as i32, (crate::VERT_FLOOR + frame.height() / 2) as i32)));
         self.present();
     }
-}    
+}
