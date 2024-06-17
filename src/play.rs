@@ -1,6 +1,6 @@
 use crate::{ObjectKind, Rect, Update};
 
-use super::{Input, Outcome, room::{Deactivated, Room, Enemy}, Side, Object};
+use super::{Input, Outcome, room::{self, RoomId, Deactivated, Room, Enemy}, Side, Object};
 use std::{collections::{BTreeSet, HashMap}, num::NonZero, ops::Range};
 
 const MAX_THRUST: i16 = 5;
@@ -28,6 +28,7 @@ impl From<Object> for Option<Hazard> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum State {
+	Escaping(Option<RoomId>),
     FadingIn(Range<u8>),
     FadingOut(Range<u8>),
 //    Turning(Range<u8>),
@@ -41,8 +42,9 @@ const DIE: State = State::FadingOut(0..16);
 const IGNITE: State = State::Burning(0..150);
 
 impl State {
-    fn outcome(&self, _score: u32) -> Option<Outcome> {
+    fn outcome(&self, score: u32) -> Option<Outcome> {
         match self {
+			Self::Escaping(to) => Some(Outcome::Leave { score, destination: to.map(|RoomId(id)| (id as i16, Entrance::Air))}),
             Self::FadingOut(_) | Self::Burning(_) /* | Self::Shredding(_) */ => Some(Outcome::Dead),
 //            Self::Ascending(RoomId(room), _) | Self::Descending(RoomId(room), _) => Some(Outcome::Leave{score, destination: Some(*room)}),
             _ => None
@@ -54,6 +56,7 @@ impl std::iter::Iterator for State {
     type Item = (i16, i16, bool);
     fn next(&mut self) -> Option<Self::Item> {
         match self {
+        	Self::Escaping(..) => None,
             Self::FadingIn(phase) |
             Self::FadingOut(phase) /* |
             Self::Turning(phase) */ => phase.next().map(|_| (0, 0, false)),
@@ -77,6 +80,8 @@ enum Event {
 impl From<&State> for u8 {
     fn from(value: &State) -> Self {
         match value {
+        	State::Escaping(None) => 0,
+        	State::Escaping(_) => 1,
         //    State::Turning(phase) => 16u8 + phase.start,
             State::FadingIn(phase) => 32u8 + phase.start,
             State::FadingOut(phase) => 48u8 + phase.start,
@@ -136,7 +141,8 @@ pub enum Dynamic {
 pub enum Entrance {
     Spawn(Side),
     Flying(Side, u16),
-//    Up, Down, Air,
+//    Up, Down,
+	Air,
 }
 
 impl Default for Entrance {
@@ -158,6 +164,9 @@ impl Room {
     }
     fn enter_at(&self, from: Entrance) -> ((i16, i16), Side) {
         match from {
+        	Entrance::Air => ((self.objects.iter().filter_map(
+        		|o| match o { Object{object_is: ObjectKind::CeilingDuct { .. }, is_on: true, ..} => Some(o.bounds.left() as i16), _ => None}
+        	).last().unwrap_or(232) + 24, room::VERT_CEILING as i16 + 10), Side::Right),
             Entrance::Spawn(side) => ((match side { Side::Left => 24, Side::Right => 488}, 50), -side),
             Entrance::Flying(side, height) => ((match side { Side::Left => 24, Side::Right => 488}, height as i16), -side),
 //            Entrance::Appearing(target) => {let bounds = self.objects[target as usize].bounds; (bounds.x(), bounds.y(), Side::Right)}
@@ -165,6 +174,9 @@ impl Room {
     }
     pub fn start(&self, from: Entrance) -> Play {
         let ((x, y), facing) = self.enter_at(from);
+        for o in &self.objects {
+        	eprintln!("{o:?}");
+        }
         Play {
             room: self,
             score: 0,
@@ -185,14 +197,15 @@ impl super::object::Object {
     fn action(&self, mut test: Rect, motion: &mut(i16, i16), id: usize, air: bool) -> Option<Event> {
         type Kind = ObjectKind;
         match (self.object_is, self.is_on) {
-//            (Kind::CeilingDuct { destination, .. }, true) => {let destination = destination.into(); Box::new(move |play, _| {play.cue(Outcome::Leave{score: play.score, destination}); None})},
-//            (Kind::CeilingDuct {..}, false) | (Kind::CeilingVent {..}, _) => Box::new(|play, (_, v)| {if play.on.air {*v += 7}; None}),
+            (Kind::CeilingDuct { destination, .. }, false) => Some(Event::Control(State::Escaping(destination))),
+            (Kind::CeilingDuct {..}, true) | (Kind::CeilingVent {..}, _) => {if air {motion.1 += 7}; None},
 //            (Kind::Fan { faces, .. }, true) => Box::new(move |play, (h, _)| {*h += faces * 7; let flip = faces != play.facing; play.facing = faces; flip.then_some(Event::Control(State::Turning(0..11)))}),
             (kind, _) => match kind {
                 Kind::Table | Kind::Shelf | Kind::Books | Kind::Cabinet | Kind::Obstacle | Kind::Basket | Kind::Macintosh |
                 Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} => Some(Event::Control(DIE)),
                 Kind::Clock(value) | Kind::Bonus(value) => Some(Event::Action(Update::Score(value), Some(id))),
                 Kind::FloorVent { .. } | Kind::Candle { .. } => {if air {motion.1 -= 7}; None},
+                Kind::CeilingDuct { destination, .. } => if self.is_on {motion.1 += 7; None} else { Some(Event::Control(State::Escaping(destination))) },
                 Kind::Wall => {
                     test >>= *motion;
                     if test.left() < self.bounds.right() && test.right() >= self.bounds.right() {
@@ -217,12 +230,12 @@ const BOUNDS: [Object; 3] = [
     },
     Object{
         object_is: ObjectKind::Obstacle,
-        bounds: Rect::new(0, 325, 512, 342),
+        bounds: Rect::new(0, room::VERT_FLOOR, 512, 342),
         is_on: true,
     },
     Object{
         object_is: ObjectKind::Wall,
-        bounds: Rect::new(512, 0, 536, 342),
+        bounds: Rect::new(498, 0, 536, 342),
         is_on: true,
     },
 ];
@@ -233,6 +246,7 @@ impl<'a> Play<'a> {
             State::FadingIn(..) => vec![Update::Fade(true)],
             State::FadingOut(..) => vec![Update::Fade(false)],
             State::Burning(..) => vec![Update::Burn],
+            _ => vec![],
         });
         let control = if let Some(state) = self.now.as_mut() {
             if let Some(motion) = state.next() {
@@ -240,10 +254,11 @@ impl<'a> Play<'a> {
             	let motion = if relative { (self.facing * h, v) } else { (h, v) };
                 Some((motion, match state {/* State::Turning(_) | */ State::Burning(..) => true, _ => false}))
             } else {
-                if let Some(outcome) = state.outcome(self.score) {
+				let result = state.outcome(self.score);
+				self.now = None;
+                if let Some(outcome) = result {
                     return outcome
                 }
-                self.now = None;
                 None
             }
         } else { None };
@@ -315,11 +330,15 @@ impl<'a> Play<'a> {
 
     pub fn reset(&mut self, at: Entrance) {
         let ((x, y), facing) = self.room.enter_at(at);
-        self.facing = facing;
+        if !matches!(at, Entrance::Air) {
+			self.facing = facing;
+        }
         self.player_h = x;
         self.player_v = y;
         self.motion_h = 0;
         self.motion_v = 0;
-        self.now = Some(State::FadingIn(0..16));
+        if let Entrance::Spawn(..) = at {
+        	self.now = Some(State::FadingIn(0..16));
+        }
     }
 }
