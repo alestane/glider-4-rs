@@ -2,6 +2,11 @@ use std::slice::SliceIndex;
 
 use super::{*, object::Object};
 
+pub const SCREEN_HEIGHT:	u16 = 342;
+pub const SCREEN_WIDTH:		u16 = 512;
+pub const VERT_CEILING:		u16 = 24;
+pub const VERT_FLOOR:		u16 = 325;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct RoomId(pub u16);

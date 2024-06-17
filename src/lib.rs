@@ -3,11 +3,14 @@
 #[macro_use]
 extern crate disclose;
 
-use std::{num::NonZero, ops::Range, time::{Duration, SystemTime}};
+use std::{num::NonZero, time::{Duration, SystemTime}};
 
 #[disclose]
 mod prelude {
     use super::{Rect, Input, Outcome, Success, Side, Vertical, Room, House, Environment, Update, room::Enemy};
+    pub mod room {
+    	use crate::room::{SCREEN_WIDTH, SCREEN_HEIGHT, VERT_CEILING, VERT_FLOOR};
+    }
 }
 
 #[repr(C)]

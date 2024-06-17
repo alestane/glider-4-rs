@@ -2,7 +2,7 @@ use std::{collections::HashMap, num::NonZero};
 
 use glider::{Side, Object, ObjectKind, prelude::Enemy};
 use sdl2::{pixels::{Color, PixelFormatEnum}, rect::{Point, Rect}, render::{BlendMode, Canvas, RenderTarget, Texture}, surface::Surface, video::Window};
-use crate::{SCREEN_HEIGHT, SCREEN_WIDTH, VERT_FLOOR, space, atlas::{self, Atlas}, resources};
+use crate::{room::{SCREEN_HEIGHT, SCREEN_WIDTH, VERT_FLOOR}, space, atlas::{self, Atlas}, resources};
 
 pub type Frame = Box<dyn Iterator<Item = usize>>;
 pub type Animations = HashMap<u8, Frame>;
@@ -24,10 +24,12 @@ fn appearance(kind: &ObjectKind) -> Option<(&'static str, usize)> {
         ObjectKind::Clock(_) => ("collectible", atlas::CLOCK),
         ObjectKind::Battery(..) => ("collectible", atlas::BATTERY),
         ObjectKind::FloorVent { .. } => ("blowers", atlas::UP),
+        ObjectKind::CeilingDuct { .. } => ("blowers", atlas::DUCT),
         ObjectKind::Candle { .. } => ("blowers", atlas::CANDLE),
         ObjectKind::Macintosh => ("visual", atlas::COMPUTER),
         ObjectKind::Books => ("visual", atlas::BOOKS),
         ObjectKind::Painting => ("visual", atlas::PAINTING),
+        ObjectKind::Paper(..) => ("collectible", atlas::PAPER),
         _what => return None
     })
 }
@@ -374,6 +376,7 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
                 ObjectKind::Window => {
                     self.draw_window(object.bounds.into(), object.is_on)
                 }
+                ObjectKind::Bonus(..) => Ok(()),
                 what => Err(format!("Unimplemented object: {what:?}")),
             } {
                 Err(e) => eprintln!("{e}"),
@@ -438,7 +441,7 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         }
         self.draw(pixels, frame, frame.centered_on((player_position.0 as i32, player_position.1 as i32)));
         let frame: sdl2::rect::Rect = slides[atlas::SHADOW].into();
-        self.draw(pixels, frame, frame.centered_on((player_position.0 as i32, (crate::VERT_FLOOR + frame.height() / 2) as i32)));
+        self.draw(pixels, frame, frame.centered_on((player_position.0 as i32, (VERT_FLOOR + frame.height() / 2) as i32)));
         self.present();
     }
 }
