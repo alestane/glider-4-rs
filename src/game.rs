@@ -1,6 +1,6 @@
 use sdl2::{keyboard::{KeyboardState, Scancode}, render::Texture};
 use glider::{Entrance, Input, Outcome, Room, Side, Update};
-use crate::{atlas, draw::{Animations, Frame, Scribe}, SCREEN_HEIGHT, SCREEN_WIDTH};
+use crate::{atlas, draw::{Animations, Frame, Scribe}, room::{SCREEN_HEIGHT, SCREEN_WIDTH}};
 use std::time::{Duration, Instant};
 
 const FADE_IN: &[usize] = &[3, 4, 3, 4, 5, 4, 5, 6, 5, 6, 7, 6, 7, 8, 7, 8, 9];
@@ -10,20 +10,20 @@ fn animate_with<F: FnOnce() -> Frame>(list: &mut Animations, id: u8, loader: F) 
 	if !list.contains_key(&id) {list.insert(id, loader());}
 }
 
-pub fn run(context: &mut crate::App, theme: &Texture, room: &Room, target: Entrance) -> Result<(u32, Option<(i16, Entrance)>), ()> {
+pub fn run(context: &mut crate::App, theme: &Texture, room: (usize, &Room), target: Entrance) -> Result<(u32, Option<(i16, Entrance)>), ()> {
     let display = &mut context.display;
     let loader = display.texture_creator();
 
     let mut backdrop = loader.create_texture_target(None, SCREEN_WIDTH, SCREEN_HEIGHT).expect("Failed to create backdrop texture");
     let _ = display.with_texture_canvas(&mut backdrop,
         |display| {
-            display.draw_wall(&theme, &room.tile_order);
-            for object in room.objects.iter().filter(|&object| !object.dynamic()) {
+            display.draw_wall(&theme, &room.1.tile_order);
+            for object in room.1.objects.iter().filter(|&object| !object.dynamic()) {
                 display.draw_object(object, &context.sprites);
             }
         }
     );
-    let mut play = room.start(target);
+    let mut play = room.1.start(target);
     if let Entrance::Spawn(..) = target { play.reset(Entrance::default()) };
     let mut animation = HashMap::<u8, Box<dyn Iterator<Item = usize>>>::new();
 
@@ -58,6 +58,7 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: &Room, target: Entra
             	animation.remove(&0);
             	play.reset(match target {Entrance::Flying(side, ..) => Entrance::Spawn(side), target => target})
             }
+            Outcome::Leave{destination: Some((to_room, at)), ..} if to_room as usize == room.0 => {eprintln!("jumping to {to_room}, {at:?}"); play.reset(at)},
             Outcome::Leave{score, destination} => return Ok((score, destination)),
             _ => ()
         }
@@ -74,10 +75,11 @@ pub fn play(context: &mut crate::App, pics: &HashMap<usize, Texture>, house: &[R
     let mut arrive = Entrance::default();
     while let (points, Some((next, at))) = {
         eprintln!("Object count: {}", house[room as usize].objects.len());
-        run(context, &pics[&(house[room as usize].theme_index() as usize)], &house[room], arrive)?
+        run(context, &pics[&(house[room as usize].theme_index() as usize)], (room + 7, &house[room]), arrive)?
     } {
         score += points;
         (room, arrive) = match at {
+        	Entrance::Air => (next as usize, at),
             Entrance::Flying(..) => {
                 let Some(index) = room.checked_add_signed(next as isize) else { return Err(()) };
                 if index >= house.len() { return Err(()) }
