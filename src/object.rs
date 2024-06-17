@@ -10,13 +10,13 @@ pub enum ObjectKind {
     Table,
     Shelf,
     Books,
-    Cabinet, 
+    Cabinet,
     Exit{to: RoomId},
     Obstacle,
 
     FloorVent{height: u16},
     CeilingVent{height: u16},
-    CeilingDuct{height: u16, destination: RoomId},
+    CeilingDuct{height: u16, destination: Option<RoomId>},
     Candle{height: u16},
     Fan{faces: Side, range: u16},
 
@@ -65,18 +65,34 @@ impl Object {
     pub fn active_area(&self) -> Rect {
         type Kind = ObjectKind;
         match self.object_is {
-            Kind::FloorVent { height } | Kind::Candle {height} => Rect{_top: height, _bottom: self.bounds._top, ..self.bounds},
+            Kind::FloorVent { height } | Kind::Candle {height} => Rect{_top: height, _bottom: room::VERT_FLOOR, ..self.bounds},
+            Kind::CeilingDuct { height, .. } => if self.is_on {
+            	let middle = self.bounds.x(); Rect{_left: middle - 8, _right: middle + 8, _top: room::VERT_CEILING, _bottom: height}
+            } else {
+            	Rect{_bottom: self.bounds._top + 8, ..self.bounds }
+            },
             _ => self.bounds
         }
     }
+/*
+						if (isOn) then
+						begin
+							tempInt := (boundRect.right + boundRect.left) div 2;
+							SetRect(eventRect[index], tempInt - 8, kCeilingVert, tempInt + 8, amount);
+						end
+						else
+						begin
+							eventRect[index] := boundRect;
+							eventRect[index].bottom := eventRect[index].top + 8;
 
+*/
     pub fn dynamic(&self) -> bool {
         match self.object_is {
             ObjectKind::Clock(_) |
-            ObjectKind::Paper(_) | 
-            ObjectKind::Grease{..} | 
-            ObjectKind::Battery(_) | 
-            ObjectKind::RubberBands(_) | 
+            ObjectKind::Paper(_) |
+            ObjectKind::Grease{..} |
+            ObjectKind::Battery(_) |
+            ObjectKind::RubberBands(_) |
             ObjectKind::Drip{..} |
             ObjectKind::Ball{..} |
             ObjectKind::Fishbowl{..} => true,

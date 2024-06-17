@@ -24,7 +24,7 @@ impl ObjectKind {
 
              8 => FloorVent{height:amount},
              9 => CeilingVent{height: amount},
-            10 => CeilingDuct{height: amount, destination: RoomId(extra.into())},
+            10 => CeilingDuct{height: amount, destination: Some(RoomId(extra.into()))},
             11 => Candle{height: amount},
             12 => Fan{faces: Side::Left, range: amount},
             13 => Fan{faces: Side::Right, range: amount},
