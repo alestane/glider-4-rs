@@ -1,7 +1,7 @@
 use crate::{ObjectKind, Point, Rect, Update};
 
 use super::{Input, Outcome, room::{self, RoomId, Deactivated, Room, Enemy}, Side, Object};
-use std::{collections::{BTreeSet, HashMap}, iter::from_fn, num::NonZero, ops::Range, time::Duration};
+use std::{collections::{BTreeSet, HashMap}, iter::from_fn, num::NonZero, ops::Range};
 
 
 fn random() -> u16 {
@@ -38,6 +38,7 @@ impl Enemy {
 	fn start(&self) -> Option<Point> {
 		Some(match self {
 			Self::Balloon => ((random() % 400)  as i16 + 50, 358),
+            Self::Copter => ((random() % 256) as i16 + 272, -16),
 			_ => return None
 		}.into())
 	}
@@ -50,6 +51,7 @@ impl Enemy {
 impl Hazard {
 	fn bounds(&self) -> Option<Rect> {
 		let (width, height) = unsafe { match self.kind {
+            Enemy::Copter => (NonZero::new_unchecked(32), NonZero::new_unchecked(32)),
 			Enemy::Balloon => (NonZero::new_unchecked(32), NonZero::new_unchecked(32)),
 			Enemy::Flame => (NonZero::new_unchecked(11), NonZero::new_unchecked(12)),
 			_ => (NonZero::new_unchecked(1), NonZero::new_unchecked(1))
@@ -57,15 +59,14 @@ impl Hazard {
 		self.position.frame(width, height)
 	}
 	fn advance(&mut self) {
-		match self.kind {
-			Enemy::Balloon => {
-				if self.period.next().is_none() {
-					self.position += (0, -3);
-					if let None = self.bounds().map(|bounds| bounds & room::BOUNDS) { eprintln!("GONE!"); self.reset(); }
-				}
-			},
-			_ => ()
-		}
+		if self.period.next().is_none() {
+            self.position += match self.kind {
+                Enemy::Balloon => (0, -3),
+                Enemy::Copter => (-4, 2),
+                _ =>  return,
+            };
+            if let None = self.bounds().map(|bounds| bounds & room::BOUNDS) { self.reset(); }
+        };
 	}
 	fn reset(&mut self) {
 		let delay = self.period.end;
@@ -179,7 +180,7 @@ struct On {
 fn id() -> u8 {
     static mut NEXT: NonZero<u8> = unsafe { NonZero::new_unchecked(73) };
     let id = unsafe { NEXT.get() };
-    unsafe { NEXT = NonZero::new(id + 73).unwrap_or(NonZero::new_unchecked(73) ) };
+    unsafe { NEXT = NonZero::new(id.wrapping_add(73)).unwrap_or(NonZero::new_unchecked(73) ) };
     id
 }
 
