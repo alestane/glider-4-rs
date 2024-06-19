@@ -1,6 +1,6 @@
-use crate::{ObjectKind, Point, Rect, Update};
+use crate::{Environment, ObjectKind, Point, Rect, Update};
 
-use super::{Input, Outcome, room::{self, RoomId, Deactivated, Room, Enemy}, Side, Object};
+use super::{Input, Outcome, object::ObjectId, room::{self, RoomId, Deactivated, Room, Enemy}, Side, Object};
 use std::{collections::{BTreeSet, HashMap}, iter::from_fn, num::NonZero, ops::Range};
 
 
@@ -23,7 +23,8 @@ struct Hazard {
     kind: Enemy,
     position: Point,
     period: Range<i32>,
-    is_on: bool
+    is_on: bool,
+    control: Option<ObjectId>
 }
 
 impl Enemy {
@@ -33,6 +34,7 @@ impl Enemy {
 			position: if let Some(start) = self.start() {start} else {return None},
 			period: Self::period(delay),
 			is_on: true,
+            control: None,
 		})
 	}
 	fn start(&self) -> Option<Point> {
@@ -54,6 +56,7 @@ impl Hazard {
             Enemy::Copter => (NonZero::new_unchecked(32), NonZero::new_unchecked(32)),
 			Enemy::Balloon => (NonZero::new_unchecked(32), NonZero::new_unchecked(32)),
 			Enemy::Flame => (NonZero::new_unchecked(11), NonZero::new_unchecked(12)),
+            Enemy::Shock => (NonZero::new_unchecked(32), NonZero::new_unchecked(25)), 
 			_ => (NonZero::new_unchecked(1), NonZero::new_unchecked(1))
 		} };
 		self.position.frame(width, height)
@@ -63,9 +66,18 @@ impl Hazard {
             self.position += match self.kind {
                 Enemy::Balloon => (0, -3),
                 Enemy::Copter => (-4, 2),
-                _ =>  return,
+                _ => (0, 0),
             };
-            if let None = self.bounds().map(|bounds| bounds & room::BOUNDS) { self.reset(); }
+            match self.kind {
+                Enemy::Balloon | Enemy::Copter => if let None = self.bounds().map(|bounds| bounds & room::BOUNDS) { self.reset(); }
+                Enemy::Shock => if self.is_on { 
+                    self.period.start = 0; self.is_on = false; 
+                } else { 
+                    self.period.start = self.period.end - 30; self.is_on = true; 
+                },
+                _ => ()
+            }
+            
         };
 	}
 	fn reset(&mut self) {
@@ -81,13 +93,25 @@ impl Hazard {
 	}
 }
 
-impl From<Object> for Option<Hazard> {
-    fn from(value: Object) -> Self {
-        let bounds = value.bounds;
-        Option::<Enemy>::from(value.object_is).and_then(|kind|
+impl Object {
+    fn effect(&self, this: ObjectId) -> Option<Hazard> {
+        let bounds = self.bounds;
+        Option::<Enemy>::from(self.object_is).and_then(|kind|
             Some(match kind {
-                Enemy::Flame => Hazard{kind, period: 0..0, position: (bounds.left() as i16 + 10, bounds.top() as i16 - 6).into(), is_on: true},
-
+                Enemy::Flame => Hazard{
+                    kind, 
+                    period: 0..0, 
+                    position: (bounds.left() as i16 + 10, bounds.top() as i16 - 6).into(), 
+                    is_on: true, 
+                    control: this.into()
+                },
+                Enemy::Shock => Hazard{
+                    kind, 
+                    period: if let ObjectKind::Outlet { delay } = self.object_is {0..(delay as i32)} else {return None}, 
+                    position: (bounds.x() as i16, bounds.y() as i16).into(), 
+                    is_on: false, 
+                    control: this.into()
+                },
                 _ => return None
             })
         )
@@ -257,8 +281,8 @@ impl Room {
             motion_v: 0,
             on: On{air: self.condition_code != Some(Deactivated::Air), lights: self.condition_code != Some(Deactivated::Lights)},
             now: from.action(),
-            hazards: HashMap::from_iter(self.objects.iter()
-            	.filter_map(|o| Option::<Hazard>::from(*o))
+            hazards: HashMap::from_iter(self.objects.iter().enumerate()
+            	.filter_map(|(id, o)| o.effect(id.into()))
             	.chain(self.animate.map(|(kind, count, delay)| from_fn(move || kind.new(delay)).take(count.get() as usize)).into_iter().flatten())
             	.map(|h| (id(), h))),
         }
@@ -278,6 +302,7 @@ impl super::object::Object {
                 Kind::Clock(value) | Kind::Bonus(value) => Some(Event::Action(Update::Score(value), Some(id))),
                 Kind::FloorVent { .. } | Kind::Candle { .. } => {if air {motion.1 -= 7}; None},
                 Kind::CeilingDuct { destination, .. } => if self.is_on {motion.1 += 7; None} else { Some(Event::Control(State::Escaping(destination))) },
+                Kind::Guitar => Some(Event::Action(Update::Start(Environment::Guitar), None)),
                 Kind::Wall => {
                     test >>= *motion;
                     if test.left() < self.bounds.right() && test.right() >= self.bounds.right() {
@@ -393,8 +418,8 @@ impl<'a> Play<'a> {
             .map(|&index| &self.room.objects[index] )
     }
 
-    pub fn active_hazards(&self) -> impl Iterator<Item = (u8, Enemy, (i16, i16))> + '_ {
-        self.hazards.iter().map(|(&id, Hazard{kind, position, ..})| (id, *kind, <Point as Into<(i16, i16)>>::into(*position)))
+    pub fn active_hazards(&self) -> impl Iterator<Item = (u8, Enemy, (i16, i16), bool)> + '_ {
+        self.hazards.iter().map(|(&id, Hazard{kind, position, is_on, ..})| (id, *kind, <Point as Into<(i16, i16)>>::into(*position), *is_on))
     }
 
     pub fn player(&self) -> ((i16, i16), Side, bool) {

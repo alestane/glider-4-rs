@@ -3,7 +3,31 @@ use super::room::RoomId;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(transparent)]
-pub struct ObjectId(pub usize);
+pub struct ObjectId(pub NonZero<u16>);
+
+impl std::ops::Deref for ObjectId {
+    type Target = NonZero<u16>;
+    fn deref(&self) -> &Self::Target {
+        let ObjectId(ref value) = self;
+        value
+    }
+}
+
+impl From<u16> for ObjectId {
+	fn from(value: u16) -> Self { unsafe { Self( NonZero::new_unchecked( value.saturating_sub(1) + 1 ) ) } }
+}
+
+impl From<usize> for ObjectId {
+	fn from(value: usize) -> Self { unsafe { Self( NonZero::new_unchecked((value + 1) as u16) ) } }
+}
+
+impl From<ObjectId> for usize {
+	fn from(value: ObjectId) -> Self { value.0.get() as usize - 1 }
+}
+
+impl From<ObjectId> for Option<u16> {
+    fn from(value: ObjectId) -> Self { Some(value.0.get()) }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ObjectKind {
@@ -28,7 +52,7 @@ pub enum ObjectKind {
     RubberBands(u16),
 
     Switch(Option<ObjectId>),
-    Outlet{delay: Duration},
+    Outlet{delay: u16},
     Thermostat,
     Shredder,
     Guitar,
@@ -74,18 +98,7 @@ impl Object {
             _ => self.bounds
         }
     }
-/*
-						if (isOn) then
-						begin
-							tempInt := (boundRect.right + boundRect.left) div 2;
-							SetRect(eventRect[index], tempInt - 8, kCeilingVert, tempInt + 8, amount);
-						end
-						else
-						begin
-							eventRect[index] := boundRect;
-							eventRect[index].bottom := eventRect[index].top + 8;
 
-*/
     pub fn dynamic(&self) -> bool {
         match self.object_is {
             ObjectKind::Clock(_) |

@@ -37,10 +37,10 @@ impl ObjectKind {
             21 => RubberBands(amount),
 
             24 => Switch(None),
-            25 => Outlet{delay: Duration::from_secs(amount.into()) / 30},
+            25 => Outlet{delay: amount.into()},
             26 => Thermostat,
             27 => Shredder,
-            28 => Switch(Some(ObjectId(amount.into()))),
+            28 => Switch(Some(amount.into())),
             29 => Guitar,
 
             32 => Drip{range: amount},
