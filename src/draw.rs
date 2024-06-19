@@ -36,6 +36,7 @@ fn appearance(kind: &ObjectKind) -> Option<(&'static str, usize)> {
         ObjectKind::Clock(_) => ("collectible", atlas::CLOCK),
         ObjectKind::Battery(..) => ("collectible", atlas::BATTERY),
         ObjectKind::FloorVent { .. } => ("blowers", atlas::UP),
+        ObjectKind::CeilingVent { .. } => ("blowers", atlas::DOWN),
         ObjectKind::CeilingDuct { .. } => ("blowers", atlas::DUCT),
         ObjectKind::Candle { .. } => ("blowers", atlas::CANDLE),
         ObjectKind::Macintosh => ("visual", atlas::COMPUTER),
