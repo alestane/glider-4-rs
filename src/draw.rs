@@ -438,6 +438,7 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         for (id, hazard, position, is_on) in play.active_hazards() {
         	let position: space::Point = position.into();
             let (width, height, group, range) = match hazard {
+                Enemy::Dart => (64, 22, "dart", atlas::FLYING),
             	Enemy::Balloon => (32, 32, "balloon", atlas::RISING),
                 Enemy::Copter => (32, 32, "copter", atlas::FALLING),
                 Enemy::Flame => (11, 12, "fire", atlas::FLAME),

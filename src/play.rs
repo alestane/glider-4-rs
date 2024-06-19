@@ -39,6 +39,7 @@ impl Enemy {
 	}
 	fn start(&self) -> Option<Point> {
 		Some(match self {
+            Self::Dart => (544, (random() % 150) as i16 + 11),
 			Self::Balloon => ((random() % 400)  as i16 + 50, 358),
             Self::Copter => ((random() % 256) as i16 + 272, -16),
 			_ => return None
@@ -53,6 +54,7 @@ impl Enemy {
 impl Hazard {
 	fn bounds(&self) -> Option<Rect> {
 		let (width, height) = unsafe { match self.kind {
+            Enemy::Dart => (NonZero::new_unchecked(64), NonZero::new_unchecked(22)),
             Enemy::Copter => (NonZero::new_unchecked(32), NonZero::new_unchecked(32)),
 			Enemy::Balloon => (NonZero::new_unchecked(32), NonZero::new_unchecked(32)),
 			Enemy::Flame => (NonZero::new_unchecked(11), NonZero::new_unchecked(12)),
@@ -62,14 +64,15 @@ impl Hazard {
 		self.position.frame(width, height)
 	}
 	fn advance(&mut self) {
-		if self.period.next().is_none() {
+        if self.period.next().is_none() {
             self.position += match self.kind {
+                Enemy::Dart => (-8, 1),
                 Enemy::Balloon => (0, -3),
                 Enemy::Copter => (-4, 2),
                 _ => (0, 0),
             };
             match self.kind {
-                Enemy::Balloon | Enemy::Copter => if let None = self.bounds().map(|bounds| bounds & room::BOUNDS) { self.reset(); }
+                Enemy::Dart | Enemy::Balloon | Enemy::Copter => if let None = self.bounds().map(|bounds| bounds & room::BOUNDS) { self.reset(); }
                 Enemy::Shock => if self.is_on { 
                     self.period.start = 0; self.is_on = false; 
                 } else { 
