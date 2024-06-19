@@ -1,4 +1,4 @@
-use std::slice::SliceIndex;
+use std::{convert::From, num::NonZero, slice::SliceIndex};
 
 use super::{*, object::Object};
 
@@ -7,12 +7,26 @@ pub const SCREEN_WIDTH:		u16 = 512;
 pub const VERT_CEILING:		u16 = 24;
 pub const VERT_FLOOR:		u16 = 325;
 
+pub const BOUNDS:	Rect = Rect::new(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct RoomId(pub u16);
+pub struct RoomId(pub(crate) NonZero<u16>);
 
-impl std::convert::From<RoomId> for Option<u16> {
-    fn from(value: RoomId) -> Self { Some(value.0) }
+impl From<u16> for RoomId {
+	fn from(value: u16) -> Self { unsafe { Self( NonZero::new_unchecked( value.saturating_sub(1) + 1 ) ) } }
+}
+
+impl From<usize> for RoomId {
+	fn from(value: usize) -> Self { unsafe { Self( NonZero::new_unchecked((value + 1) as u16) ) } }
+}
+
+impl From<RoomId> for usize {
+	fn from(value: RoomId) -> Self { value.0.get() as usize - 1 }
+}
+
+impl From<RoomId> for Option<u16> {
+    fn from(value: RoomId) -> Self { Some(value.0.get()) }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,9 +69,7 @@ pub struct Room {
     tile_order: [u16; 8],
     left_open: Option<RoomId>,
     right_open: Option<RoomId>,
-    animate_kind: Option<Enemy>,
-    animate_number: u16,
-    animate_delay: Duration,
+    animate: Option<(Enemy, NonZero<u16>, u32)>,
     condition_code: Option<Deactivated>,
     objects: Vec<Object>,
 }
@@ -80,4 +92,9 @@ impl Room {
     }
 
     pub fn theme_index(&self) -> u16 { self.back_pict_id }
+}
+
+impl std::ops::Index<Side> for Room {
+	type Output = Option<RoomId>;
+	fn index(&self, which: Side) -> &Self::Output { match which {Side::Left=>&self.left_open, Side::Right=>&self.right_open} }
 }

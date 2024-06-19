@@ -19,12 +19,12 @@ impl ObjectKind {
              2 => Shelf,
              3 => Books,
              4 => Cabinet,
-             5 => Exit{to: RoomId(amount.into())},
+             5 => Exit{to: amount.into()},
              6 => Obstacle,
 
              8 => FloorVent{height:amount},
              9 => CeilingVent{height: amount},
-            10 => CeilingDuct{height: amount, destination: Some(RoomId(extra.into()))},
+            10 => CeilingDuct{height: amount, destination: Some(extra.into())},
             11 => Candle{height: amount},
             12 => Fan{faces: Side::Left, range: amount},
             13 => Fan{faces: Side::Right, range: amount},
@@ -54,8 +54,8 @@ impl ObjectKind {
             41 => Mirror,
             42 => Basket,
             43 => Macintosh,
-            44 => Stair(Vertical::Up, RoomId(amount.into())),
-            45 => Stair(Vertical::Down, RoomId(amount.into())),
+            44 => Stair(Vertical::Up, amount.into()),
+            45 => Stair(Vertical::Down, amount.into()),
 
             _ => return Err(Some( () ) )
         })
@@ -108,15 +108,15 @@ impl TryFrom<u16> for Enemy {
 impl From<(u16, RoomData)> for Room {
     fn from((id, value): (u16, RoomData)) -> Self {
         let n_objects = u16::from_be_bytes(value.object_count) as usize;
+        let animate = NonZero::new(u16::from_be_bytes(value.animate_number)).zip(Enemy::try_from(u16::from_be_bytes(value.animate_kind)).ok())
+        	.map(|(count, kind)| (kind, count, u32::from_be_bytes(value.animate_delay) / 2));
         Self {
             name: string_from_pascal(&value.name),
             back_pict_id: u16::from_be_bytes(value.back_pict_id),
             tile_order: value.tile_order.into_iter().map(|pair| u16::from_be_bytes(pair)).next_chunk().unwrap(),
-            left_open: (value.left_right_open[0] != 0).then_some(RoomId(id.saturating_sub(1))),
-            right_open: (value.left_right_open[1] != 0).then_some(RoomId(id.saturating_add(1))),
-            animate_kind: Enemy::try_from(u16::from_be_bytes(value.animate_kind)).ok(),
-            animate_number: u16::from_be_bytes(value.animate_number),
-            animate_delay: Duration::from_secs(u32::from_be_bytes(value.animate_delay) as u64) / 30,
+            left_open: (value.left_right_open[0] != 0).then_some((id - 1).into()),
+            right_open: (value.left_right_open[1] != 0).then_some((id + 1).into()),
+            animate,
             condition_code: Deactivated::try_from(u16::from_be_bytes(value.condition_code)).ok(),
             objects: Vec::from_iter(
                 value.objects[..n_objects]
