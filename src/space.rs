@@ -1,4 +1,46 @@
 #[derive(Debug, Clone, Copy)]
+pub struct Point {
+	x_: i32,
+	y_: i32,
+}
+
+impl Default for Point {
+	fn default() -> Self { Self{x_: 0, y_:0} }
+}
+
+impl From<sdl2::rect::Point> for Point {
+	fn from(value: sdl2::rect::Point) -> Self { Self {x_: value.x(), y_: value.y()}}
+}
+
+impl From<glider::Point> for Point {
+	fn from(value: glider::Point) -> Self { Self{x_: value.x() as i32, y_: value.y() as i32} }
+}
+
+impl From<(i16, i16)> for Point {
+	fn from((x, y): (i16, i16)) -> Self { Self{x_: x as i32, y_: y as i32} }
+}
+
+impl From<(i32, i32)> for Point {
+	fn from((x_, y_): (i32, i32)) -> Self { Self{x_, y_} }
+}
+
+impl From<Point> for sdl2::rect::Point {
+	fn from(Point{x_, y_}: Point) -> Self { Self::new(x_, y_) }
+}
+
+impl From<Point> for glider::Point {
+	fn from(Point{x_, y_}: Point) -> Self { Self::new(x_ as i16, y_ as i16) }
+}
+
+impl From<Point> for (i32, i32) {
+	fn from(Point{x_, y_}: Point) -> Self { (x_, y_) }
+}
+
+impl From<Point> for (i16, i16) {
+	fn from(Point{x_, y_}: Point) -> Self { (x_ as i16, y_ as i16) }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum Rect {
     Unsigned(u32, u32, u32, u32),
     Signed(i32, i32, i32, i32),
