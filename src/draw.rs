@@ -42,6 +42,8 @@ fn appearance(kind: &ObjectKind) -> Option<(&'static str, usize)> {
         ObjectKind::Books => ("visual", atlas::BOOKS),
         ObjectKind::Painting => ("visual", atlas::PAINTING),
         ObjectKind::Paper(..) => ("collectible", atlas::PAPER),
+        ObjectKind::Outlet{..} => ("power", atlas::OUTLET),
+        ObjectKind::Guitar => ("visual", atlas::GUITAR),
         _what => return None
     })
 }
@@ -433,14 +435,16 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         for item in play.active_items().filter(|&o| o.dynamic()) {
             self.draw_object(item, sprites);
         }
-        for (id, hazard, position) in play.active_hazards() {
+        for (id, hazard, position, is_on) in play.active_hazards() {
         	let position: space::Point = position.into();
             let (width, height, group, range) = match hazard {
             	Enemy::Balloon => (32, 32, "balloon", atlas::RISING),
                 Enemy::Copter => (32, 32, "copter", atlas::FALLING),
                 Enemy::Flame => (11, 12, "fire", atlas::FLAME),
+                Enemy::Shock => (32, 25, "power", atlas::SPARK),
                 _ => continue
             };
+            if !is_on { continue; }
             let frame = if let Some(frame) = times.get_mut(&id).and_then(|seq| seq.next()) {
 				frame
 			} else {
