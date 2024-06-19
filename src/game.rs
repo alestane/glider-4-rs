@@ -1,7 +1,7 @@
 use sdl2::{keyboard::{KeyboardState, Scancode}, render::Texture};
 use glider::{Entrance, Input, Outcome, Room, Side, Update};
 use crate::{atlas, draw::{Animations, Frame, Scribe}, room::{SCREEN_HEIGHT, SCREEN_WIDTH}};
-use std::time::{Duration, Instant};
+use std::{time::{Duration, Instant}, num::NonZero};
 
 const FADE_IN: &[usize] = &[3, 4, 3, 4, 5, 4, 5, 6, 5, 6, 7, 6, 7, 8, 7, 8, 9];
 const FADE_OUT: &[usize] = &[9, 8, 9, 8, 7, 8, 7, 6, 7, 6, 5, 6, 5, 4, 5, 4, 3];
@@ -10,7 +10,7 @@ fn animate_with<F: FnOnce() -> Frame>(list: &mut Animations, id: u8, loader: F) 
 	if !list.contains_key(&id) {list.insert(id, loader());}
 }
 
-pub fn run(context: &mut crate::App, theme: &Texture, room: (usize, &Room), target: Entrance) -> Result<(u32, Option<(i16, Entrance)>), ()> {
+pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room), target: Entrance) -> Result<(u32, Option<(NonZero<u16>, Entrance)>), ()> {
     let display = &mut context.display;
     let loader = display.texture_creator();
 
@@ -58,7 +58,7 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (usize, &Room), targ
             	animation.remove(&0);
             	play.reset(match target {Entrance::Flying(side, ..) => Entrance::Spawn(side), target => target})
             }
-            Outcome::Leave{destination: Some((to_room, at)), ..} if to_room as usize == room.0 => {eprintln!("jumping to {to_room}, {at:?}"); play.reset(at)},
+            Outcome::Leave{destination: Some((to_room, at)), ..} if to_room == room.0 => play.reset(at),
             Outcome::Leave{score, destination} => return Ok((score, destination)),
             _ => ()
         }
@@ -69,24 +69,24 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (usize, &Room), targ
 
 use std::collections::HashMap;
 
-pub fn play(context: &mut crate::App, pics: &HashMap<usize, Texture>, house: &[Room]) -> Result<(u32, usize), ()> {
+pub fn play(context: &mut crate::App, pics: &HashMap<usize, Texture>, house: &[Room]) -> Result<(u32, NonZero<u16>), ()> {
     let mut score = 0u32;
-    let mut room = 0usize;
+    let mut room_index = unsafe{ NonZero::new_unchecked(1u16) };
     let mut arrive = Entrance::default();
     while let (points, Some((next, at))) = {
-        eprintln!("Object count: {}", house[room as usize].objects.len());
-        run(context, &pics[&(house[room as usize].theme_index() as usize)], (room + 7, &house[room]), arrive)?
+    	let room = &house[room_index.get() as usize - 1];
+        eprintln!("Object count: {}", room.objects.len());
+        run(context, &pics[&(room.theme_index() as usize)], (room_index, room), arrive)?
     } {
         score += points;
-        (room, arrive) = match at {
-        	Entrance::Air => (next as usize, at),
+        (room_index, arrive) = match at {
+        	Entrance::Air => (next, at),
             Entrance::Flying(..) => {
-                let Some(index) = room.checked_add_signed(next as isize) else { return Err(()) };
-                if index >= house.len() { return Err(()) }
-                (index, at)
+                if next.get() as usize > house.len() { return Err(()) }
+                (next, at)
             }
-            Entrance::Spawn(..) => (next as usize, at)
+            Entrance::Spawn(..) => (next, at)
         };
     }
-    Ok((score, room))
+    Ok((score, room_index))
 }
