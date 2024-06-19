@@ -1,16 +1,83 @@
-use crate::{ObjectKind, Rect, Update};
+use crate::{ObjectKind, Point, Rect, Update};
 
 use super::{Input, Outcome, room::{self, RoomId, Deactivated, Room, Enemy}, Side, Object};
-use std::{collections::{BTreeSet, HashMap}, num::NonZero, ops::Range};
+use std::{collections::{BTreeSet, HashMap}, iter::from_fn, num::NonZero, ops::Range, time::Duration};
+
+
+fn random() -> u16 {
+	use std::sync::LazyLock;
+	use random::Source;
+	static mut RAND: LazyLock<std::cell::RefCell<random::Default>> = LazyLock::new(|| std::cell::RefCell::new(random::default(
+		match std::time::SystemTime::UNIX_EPOCH.elapsed() {
+			Ok(length) => length,
+			Err(wrong) => wrong.duration(),
+		}.as_secs()
+	)));
+	unsafe { RAND.borrow_mut().read::<u16>() }
+}
 
 const MAX_THRUST: i16 = 5;
 
 #[derive(Debug, Clone)]
 struct Hazard {
     kind: Enemy,
-    period: Range<u16>,
-    bounds: Rect,
+    position: Point,
+    period: Range<i32>,
     is_on: bool
+}
+
+impl Enemy {
+	fn new(&self, delay: u32) -> Option<Hazard> {
+		Some(Hazard {
+			kind: *self,
+			position: if let Some(start) = self.start() {start} else {return None},
+			period: Self::period(delay),
+			is_on: true,
+		})
+	}
+	fn start(&self) -> Option<Point> {
+		Some(match self {
+			Self::Balloon => ((random() % 400)  as i16 + 50, 358),
+			_ => return None
+		}.into())
+	}
+	fn period(delay: u32) -> Range<i32> {
+		let delay = delay as i32;
+		(delay - (random() as i32 % (delay + 60) + 30))..delay
+	}
+}
+
+impl Hazard {
+	fn bounds(&self) -> Option<Rect> {
+		let (width, height) = unsafe { match self.kind {
+			Enemy::Balloon => (NonZero::new_unchecked(32), NonZero::new_unchecked(32)),
+			Enemy::Flame => (NonZero::new_unchecked(11), NonZero::new_unchecked(12)),
+			_ => (NonZero::new_unchecked(1), NonZero::new_unchecked(1))
+		} };
+		self.position.frame(width, height)
+	}
+	fn advance(&mut self) {
+		match self.kind {
+			Enemy::Balloon => {
+				if self.period.next().is_none() {
+					self.position += (0, -3);
+					if let None = self.bounds().map(|bounds| bounds & room::BOUNDS) { eprintln!("GONE!"); self.reset(); }
+				}
+			},
+			_ => ()
+		}
+	}
+	fn reset(&mut self) {
+		let delay = self.period.end;
+		match (self.kind, self.kind.start()) {
+			(_, Some(start)) => {
+				self.period.start = delay - (random() as i32 % (delay + 60) + 30);
+				self.position = start;
+			},
+			(Enemy::Flame, _) => (),
+			_ => return,
+		}
+	}
 }
 
 impl From<Object> for Option<Hazard> {
@@ -18,7 +85,7 @@ impl From<Object> for Option<Hazard> {
         let bounds = value.bounds;
         Option::<Enemy>::from(value.object_is).and_then(|kind|
             Some(match kind {
-                Enemy::Flame => Hazard{kind, period: 0..0, bounds: Rect::new(bounds.left() + 5, bounds.top() - 12, bounds.left() + 16, bounds.top()), is_on: true},
+                Enemy::Flame => Hazard{kind, period: 0..0, position: (bounds.left() as i16 + 10, bounds.top() as i16 - 6).into(), is_on: true},
 
                 _ => return None
             })
@@ -44,7 +111,7 @@ const IGNITE: State = State::Burning(0..150);
 impl State {
     fn outcome(&self, score: u32) -> Option<Outcome> {
         match self {
-			Self::Escaping(to) => Some(Outcome::Leave { score, destination: to.map(|RoomId(id)| (id as i16, Entrance::Air))}),
+			Self::Escaping(to) => Some(Outcome::Leave { score, destination: to.map(|RoomId(id)| (id, Entrance::Air))}),
             Self::FadingOut(_) | Self::Burning(_) /* | Self::Shredding(_) */ => Some(Outcome::Dead),
 //            Self::Ascending(RoomId(room), _) | Self::Descending(RoomId(room), _) => Some(Outcome::Leave{score, destination: Some(*room)}),
             _ => None
@@ -177,6 +244,7 @@ impl Room {
         for o in &self.objects {
         	eprintln!("{o:?}");
         }
+        eprintln!("{:?}", self.animate);
         Play {
             room: self,
             score: 0,
@@ -188,7 +256,10 @@ impl Room {
             motion_v: 0,
             on: On{air: self.condition_code != Some(Deactivated::Air), lights: self.condition_code != Some(Deactivated::Lights)},
             now: from.action(),
-            hazards: HashMap::from_iter(self.objects.iter().filter_map(|o| Option::<Hazard>::from(*o)).map(|h| (id(), h))),
+            hazards: HashMap::from_iter(self.objects.iter()
+            	.filter_map(|o| Option::<Hazard>::from(*o))
+            	.chain(self.animate.map(|(kind, count, delay)| from_fn(move || kind.new(delay)).take(count.get() as usize)).into_iter().flatten())
+            	.map(|h| (id(), h))),
         }
     }
 }
@@ -212,7 +283,7 @@ impl super::object::Object {
                         motion.0 += (self.bounds.right() - test.left()) as i16;
                     }
                     if test.right() > self.bounds.left() && test.left() <= self.bounds.left() {
-                        motion.0 -= (self.bounds.left() - test.right()) as i16;
+                        motion.0 -= (test.right() - self.bounds.left()) as i16;
                     }
                     Some(Event::Action(Update::Bump, None))
                 }
@@ -278,11 +349,12 @@ impl<'a> Play<'a> {
         let events = if collision {
             let walls = &BOUNDS[self.room.walls()];
             let touch = Rect::cropped_on((0u16.saturating_add_signed(self.player_h), 0u16.saturating_add_signed(self.player_v)), 28, 10);
+            for hazard in self.hazards.values_mut() { hazard.advance(); }
             let actions: Vec<_> = self.active_items().chain(walls).enumerate().filter_map(|(i, o)|
             	(o.active_area() & touch).and_then(|_| o.action(touch, &mut motion, i, self.on.air))
             ).chain(self.hazards.values().filter_map(|h|
                 h.is_on
-                .then_some(h.bounds)
+                .then(|| h.bounds())
                 .and_then(|bounds| (bounds & touch).map(|_| Event::Control(match h.kind {Enemy::Flame | Enemy::Shock => IGNITE, _ => DIE})))
             )).collect();
             let (events, outcomes): (Vec<_>, Vec<_>) = actions.into_iter().map(|e| {
@@ -305,8 +377,8 @@ impl<'a> Play<'a> {
         self.motion_v = motion.1;
         self.player_h = self.player_h + motion.0;
         self.player_v = self.player_v + motion.1;
-        if let Some(out) = match self.player_h {..-12 => Some(Side::Left), 489.. => Some(Side::Right), _ => None} {
-            return Outcome::Leave{score: self.score, destination: Some((out * 1, Entrance::Flying(-out, self.player_v as u16)))}
+        if let Some((RoomId(to), out)) = match self.player_h {..-12 => Some(Side::Left), 489.. => Some(Side::Right), _ => None}.and_then(|s| self.room[s].zip(Some(s))) {
+            return Outcome::Leave{score: self.score, destination: Some((to, Entrance::Flying(-out, self.player_v as u16)))}
         };
         Outcome::Continue(events)
     }
@@ -320,8 +392,8 @@ impl<'a> Play<'a> {
             .map(|&index| &self.room.objects[index] )
     }
 
-    pub fn active_hazards(&self) -> impl Iterator<Item = (u8, Enemy, Rect)> + '_ {
-        self.hazards.iter().map(|(&id, Hazard{kind, bounds, ..})| (id, *kind, *bounds))
+    pub fn active_hazards(&self) -> impl Iterator<Item = (u8, Enemy, (i16, i16))> + '_ {
+        self.hazards.iter().map(|(&id, Hazard{kind, position, ..})| (id, *kind, <Point as Into<(i16, i16)>>::into(*position)))
     }
 
     pub fn player(&self) -> ((i16, i16), Side, bool) {
