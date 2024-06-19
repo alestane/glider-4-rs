@@ -1,8 +1,20 @@
-use std::{collections::HashMap, num::NonZero};
+use std::{collections::HashMap, num::NonZero, iter::repeat};
 
 use glider::{Side, Object, ObjectKind, prelude::Enemy};
 use sdl2::{pixels::{Color, PixelFormatEnum}, rect::{Point, Rect}, render::{BlendMode, Canvas, RenderTarget, Texture}, surface::Surface, video::Window};
 use crate::{room::{SCREEN_HEIGHT, SCREEN_WIDTH, VERT_FLOOR}, space, atlas::{self, Atlas}, resources};
+
+fn random() -> u16 {
+	use std::sync::LazyLock;
+	use random::Source;
+	static mut RAND: LazyLock<std::cell::RefCell<random::Default>> = LazyLock::new(|| std::cell::RefCell::new(random::default(
+		match std::time::SystemTime::UNIX_EPOCH.elapsed() {
+			Ok(length) => length,
+			Err(wrong) => wrong.duration(),
+		}.as_secs()
+	)));
+	unsafe { RAND.borrow_mut().read::<u16>() }
+}
 
 pub type Frame = Box<dyn Iterator<Item = usize>>;
 pub type Animations = HashMap<u8, Frame>;
@@ -421,23 +433,24 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         for item in play.active_items().filter(|&o| o.dynamic()) {
             self.draw_object(item, sprites);
         }
-        for (id, hazard, bounds) in play.active_hazards() {
-            match hazard {
-                Enemy::Flame => {
-                    let frame = if let Some(frame) = times.get_mut(&id).and_then(|seq| seq.next()) {
-                        frame
-                    } else {
-                        let skip = id as usize % 3;
-                        let mut c = (0..3).cycle();
-                        c.advance_by(skip).ok();
-                        let frame = unsafe{ c.next().unwrap_unchecked() };
-                        times.insert(id, Box::new(c));
-                        frame
-                    };
-                    self.draw_sprite(space::Rect::from(bounds).into(), "fire", frame, sprites);
-                }
-                _ => ()
-            }
+        for (id, hazard, position) in play.active_hazards() {
+        	let position: space::Point = position.into();
+            let (width, height, group, range) = match hazard {
+            	Enemy::Balloon => (32, 32, "balloon", atlas::RISING),
+                Enemy::Flame => (11, 12, "fire", atlas::FLAME),
+                _ => continue
+            };
+            let frame = if let Some(frame) = times.get_mut(&id).and_then(|seq| seq.next()) {
+				frame
+			} else {
+				let skip = id as usize % (range.end - range.start);
+				let mut c = range.cycle().map(|i| repeat(i).take(2)).flatten();
+				c.advance_by(skip).ok();
+				let frame = unsafe{ c.next().unwrap_unchecked() };
+				times.insert(id, Box::new(c));
+				frame
+			};
+			self.draw_sprite(Rect::from_center(position, width, height).into(), group, frame, sprites);
         }
         self.draw(pixels, frame, frame.centered_on((player_position.0 as i32, player_position.1 as i32)));
         let frame: sdl2::rect::Rect = slides[atlas::SHADOW].into();
