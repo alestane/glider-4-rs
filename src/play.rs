@@ -297,14 +297,14 @@ impl super::object::Object {
         type Kind = ObjectKind;
         match (self.object_is, self.is_on) {
             (Kind::CeilingDuct { destination, .. }, false) => Some(Event::Control(State::Escaping(destination))),
-            (Kind::CeilingDuct {..}, true) | (Kind::CeilingVent {..}, _) => {if air {motion.1 += 7}; None},
+            (Kind::CeilingDuct {..}, true) | (Kind::CeilingVent {..}, _) => {if air {motion.1 = 8}; None},
 //            (Kind::Fan { faces, .. }, true) => Box::new(move |play, (h, _)| {*h += faces * 7; let flip = faces != play.facing; play.facing = faces; flip.then_some(Event::Control(State::Turning(0..11)))}),
             (kind, _) => match kind {
                 Kind::Table | Kind::Shelf | Kind::Books | Kind::Cabinet | Kind::Obstacle | Kind::Basket | Kind::Macintosh |
                 Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} => Some(Event::Control(DIE)),
                 Kind::Clock(value) | Kind::Bonus(value) => Some(Event::Action(Update::Score(value), Some(id))),
-                Kind::FloorVent { .. } | Kind::Candle { .. } => {if air {motion.1 -= 7}; None},
-                Kind::CeilingDuct { destination, .. } => if self.is_on {motion.1 += 7; None} else { Some(Event::Control(State::Escaping(destination))) },
+                Kind::FloorVent { .. } | Kind::Candle { .. } => {if air {motion.1 = -6}; None},
+                Kind::CeilingDuct { destination, .. } => if self.is_on {motion.1 = 8; None} else { Some(Event::Control(State::Escaping(destination))) },
                 Kind::Guitar => Some(Event::Action(Update::Start(Environment::Guitar), None)),
                 Kind::Wall => {
                     test >>= *motion;
@@ -401,7 +401,7 @@ impl<'a> Play<'a> {
             Some(events)
         } else {
             signal
-        };
+        }; 
         self.motion_h = motion.0;
         self.motion_v = motion.1;
         self.player_h = self.player_h + motion.0;
