@@ -71,11 +71,11 @@ use std::collections::HashMap;
 
 pub fn play(context: &mut crate::App, pics: &HashMap<usize, Texture>, house: &[Room]) -> Result<(u32, NonZero<u16>), ()> {
     let mut score = 0u32;
-    let mut room_index = unsafe{ NonZero::new_unchecked(1u16) };
+    let mut room_index = unsafe{ NonZero::new_unchecked(8u16) };
     let mut arrive = Entrance::default();
     while let (points, Some((next, at))) = {
     	let room = &house[room_index.get() as usize - 1];
-        eprintln!("Object count: {}", room.objects.len());
+        eprintln!("Object count: {}, room theme: {}", room.objects.len(), room.theme_index());
         run(context, &pics[&(room.theme_index() as usize)], (room_index, room), arrive)?
     } {
         score += points;
