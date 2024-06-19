@@ -26,5 +26,6 @@ pub fn house() -> Box<[Room]> {
         Room::try_from((6, &resources::THE_HOUSE[index(5)])).unwrap(),
         Room::try_from((7, &resources::THE_HOUSE[index(6)])).unwrap(),
         Room::try_from((8, &resources::THE_HOUSE[index(7)])).unwrap(),
+        Room::try_from((9, &resources::THE_HOUSE[index(8)][..limit(0)])).unwrap(),
     ])
 }
