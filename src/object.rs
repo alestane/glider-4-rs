@@ -89,8 +89,8 @@ impl Object {
     pub fn active_area(&self) -> Rect {
         type Kind = ObjectKind;
         match self.object_is {
-            Kind::FloorVent { height } | Kind::Candle {height} => Rect{top_: height, bottom_: room::VERT_FLOOR, ..self.bounds},
-            Kind::CeilingVent { height } => Rect{top_: self.bounds.bottom(), bottom_: height, ..self.bounds},
+            Kind::FloorVent { height } | Kind::Candle {height} => Rect{top_: height, bottom_: room::VERT_FLOOR, left_: self.bounds.x() - 8, right_: self.bounds.x() + 8},
+            Kind::CeilingVent { height } => Rect{top_: self.bounds.bottom(), bottom_: height, left_: self.bounds.x() - 8, right_: self.bounds.x() + 8},
             Kind::CeilingDuct { height, .. } => if self.is_on {
             	let middle = self.bounds.x(); Rect{left_: middle - 8, right_: middle + 8, top_: room::VERT_CEILING, bottom_: height}
             } else {
