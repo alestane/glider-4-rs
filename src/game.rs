@@ -71,7 +71,7 @@ use std::collections::HashMap;
 
 pub fn play(context: &mut crate::App, pics: &HashMap<usize, Texture>, house: &[Room]) -> Result<(u32, NonZero<u16>), ()> {
     let mut score = 0u32;
-    let mut room_index = unsafe{ NonZero::new_unchecked(10u16) };
+    let mut room_index = unsafe{ NonZero::new_unchecked(11u16) };
     let mut arrive = Entrance::default();
     while let (points, Some((next, at))) = {
     	let room = &house[room_index.get() as usize - 1];
@@ -82,11 +82,12 @@ pub fn play(context: &mut crate::App, pics: &HashMap<usize, Texture>, house: &[R
         (room_index, arrive) = match at {
         	Entrance::Air => (next, at),
             Entrance::Flying(..) => {
-                if next.get() as usize > house.len() { return Err(()) }
+                if next.get() as usize > house.len() { eprintln!("Left house to pending room: {room_index:?}"); return Err(()) }
                 (next, at)
             }
             Entrance::Spawn(..) => (next, at)
         };
-    } eprintln!("Left house to {room_index:?}");
+    } 
+    eprintln!("Left house to {room_index:?}");
     Ok((score, room_index))
 }
