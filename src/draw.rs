@@ -39,6 +39,7 @@ fn appearance(kind: &ObjectKind) -> Option<(&'static str, usize)> {
         ObjectKind::CeilingVent { .. } => ("blowers", atlas::DOWN),
         ObjectKind::CeilingDuct { .. } => ("blowers", atlas::DUCT),
         ObjectKind::Candle { .. } => ("blowers", atlas::CANDLE),
+        ObjectKind::Switch(target) => ("power", if let Some(item) = target {atlas::TOGGLE} else {atlas::SWITCH}),
         ObjectKind::Macintosh => ("visual", atlas::COMPUTER),
         ObjectKind::Books => ("visual", atlas::BOOKS),
         ObjectKind::Painting => ("visual", atlas::PAINTING),
@@ -423,19 +424,27 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
 
         self.set_draw_color(Color::RGB(0, 0, 0));
         self.clear();
-        self.draw(&backdrop, None, None);
         let (mut player_position, facing, backward) = play.player();
         let (slides, pixels) = sprites.get(match facing {Side::Left => "glider.left", Side::Right => "glider.right"} );
         let frame: sdl2::rect::Rect = slides[advance(times, 0).unwrap_or(if backward {atlas::TIPPED} else {atlas::LEVEL})].into();
         if frame.height() > 20 {player_position.1 -= frame.height() as i16 / 2 - 10};
-        for item in play.active_items().filter(|&o| o.object_is == ObjectKind::Mirror) {
-            let bounds: Rect = space::Rect::from(item.bounds).into();
-            self.set_clip_rect(Rect::new(bounds.left() + 3, bounds.top() + 3, bounds.width() - 6, bounds.height() - 6));
-            self.draw(pixels, frame, frame.centered_on((player_position.0 as i32 - 16, player_position.1 as i32  - 32)));
-        }
-        self.set_clip_rect(None);
-        for item in play.active_items().filter(|&o| o.dynamic()) {
-            self.draw_object(item, sprites);
+        if play.dark() {
+            self.set_draw_color(BLACK);
+            self.clear();
+            for item in play.active_items().filter(|&o| matches!(o.object_is, ObjectKind::Switch(None))) {
+                self.draw_object(item, sprites);
+            }
+        } else {
+            self.draw(&backdrop, None, None);
+            for item in play.active_items().filter(|&o| o.object_is == ObjectKind::Mirror) {
+                let bounds: Rect = space::Rect::from(item.bounds).into();
+                self.set_clip_rect(Rect::new(bounds.left() + 3, bounds.top() + 3, bounds.width() - 6, bounds.height() - 6));
+                self.draw(pixels, frame, frame.centered_on((player_position.0 as i32 - 16, player_position.1 as i32  - 32)));
+            }
+            self.set_clip_rect(None);
+            for item in play.active_items().filter(|&o| o.dynamic()) {
+                self.draw_object(item, sprites);
+            }
         }
         for (id, hazard, position, is_on) in play.active_hazards() {
         	let position: space::Point = position.into();
