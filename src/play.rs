@@ -1,4 +1,4 @@
-use crate::{Environment, ObjectKind, Point, Rect, Update};
+use crate::{Environment, ObjectKind, Point, Rect, Update, Vertical};
 
 use super::{Input, Outcome, object::ObjectId, room::{self, RoomId, Deactivated, Room, Enemy}, Side, Object};
 use std::{collections::{BTreeSet, HashMap}, iter::from_fn, num::NonZero, ops::Range};
@@ -129,8 +129,8 @@ enum State {
 //    Turning(Range<u8>),
 //    Shredding(Rect),
     Burning(Range<u16>),
-//    Ascending(RoomId, u16),
-//   Descending(RoomId, u16),
+    Ascending(RoomId, i16),
+   Descending(RoomId, i16),
 }
 
 const DIE: State = State::FadingOut(0..16);
@@ -138,12 +138,15 @@ const IGNITE: State = State::Burning(0..150);
 
 impl State {
     fn outcome(&self, score: u32) -> Option<Outcome> {
-        match self {
-			Self::Escaping(to) => Some(Outcome::Leave { score, destination: to.map(|RoomId(id)| (id, Entrance::Air))}),
-            Self::FadingOut(_) | Self::Burning(_) /* | Self::Shredding(_) */ => Some(Outcome::Dead),
-//            Self::Ascending(RoomId(room), _) | Self::Descending(RoomId(room), _) => Some(Outcome::Leave{score, destination: Some(*room)}),
-            _ => None
-        }
+        Some(match self {
+			Self::Escaping(to) => Outcome::Leave { score, destination: to.map(|RoomId(id)| (id, Entrance::Air))},
+            Self::FadingOut(_) | Self::Burning(_) /* | Self::Shredding(_) */ => Outcome::Dead,
+            Self::Ascending(RoomId(room), _) /*| Self::Descending(RoomId(room), _)*/
+                 => Outcome::Leave{score, destination: Some((*room, Entrance::Down))},
+            Self::Descending(RoomId(room), _)
+                => Outcome::Leave{score, destination: Some((*room, Entrance::Up))},
+            _ => return None
+        })
     }
 }
 
@@ -159,9 +162,9 @@ impl std::iter::Iterator for State {
             /* Self::Shredding(bounds) => match bounds.height().get() {
                 0..36 => {bounds._bottom += 1; Some((0, (bounds.height().get() % 2) as i16))},
                 _ => {bounds._top += 8; bounds._bottom += 8; (bounds._top > 342).then_some((0, 8))}
-            },
-            Self::Ascending(_, v) => {*v -= 6; (*v < 230).then_some((-2, -6))}
-            Self::Descending(_, v) => {*v += 6; (*v > 130).then_some((2, 6))} */
+            }, */
+            Self::Ascending(_, v) => {*v -= 6; (*v >= 230).then_some((-2, -6, false))}
+            Self::Descending(_, v) => {*v += 6; (*v <= 130).then_some((2, 6, false))},
         }
     }
 }
@@ -177,12 +180,13 @@ impl From<&State> for u8 {
         match value {
         	State::Escaping(None) => 0,
         	State::Escaping(_) => 1,
-        //    State::Turning(phase) => 16u8 + phase.start,
+            State::Ascending(..) | State::Descending(..) 
+                => 16u8,
             State::FadingIn(phase) => 32u8 + phase.start,
             State::FadingOut(phase) => 48u8 + phase.start,
-        //    State::Shredding(_) => 64u8,
+            //    State::Shredding(_) => 64u8,
             State::Burning(_) => 80u8,
-        //    State::Ascending(..) | State::Descending(..) => 96u8,
+            //    State::Turning(phase) => 16u8 + phase.start,
         }
     }
 }
@@ -236,7 +240,8 @@ pub enum Dynamic {
 pub enum Entrance {
     Spawn(Side),
     Flying(Side, u16),
-//    Up, Down,
+    Up, 
+    Down,
 	Air,
 }
 
@@ -246,10 +251,10 @@ impl Default for Entrance {
 
 impl Entrance {
     fn action(&self) -> Option<State> {
-        match self {
-            Self::Spawn(..) => Some(State::FadingIn(0..16)),
-            _ => None
-        }
+        Some(match self {
+            Self::Spawn(..) => State::FadingIn(0..16),
+            _ => return None
+        })
     }
 }
 
@@ -257,13 +262,26 @@ impl Room {
     pub fn collider_ids(&self) -> impl Iterator<Item = usize> + '_ {
         self.objects.iter().enumerate().filter_map(|(id, o)| o.collidable().then_some(id))
     }
+    fn entrance(&self, from: Entrance) -> i16 {
+        fn is_active_duct(o: &&Object) -> bool { matches!(o, Object{object_is: ObjectKind::CeilingDuct { .. }, is_on: true, ..}) }
+        fn is_down_stair(o: &&Object) -> bool { matches!(o.object_is, ObjectKind::Stair(Vertical::Down, _)) }
+        self.objects.iter()
+        .filter(
+            match from {
+                Entrance::Air => is_active_duct,
+                Entrance::Down => is_down_stair,
+                _ => return 232
+            }
+        )
+        .map(|o| o.bounds.left() as i16).last().unwrap_or(232)
+    }
     fn enter_at(&self, from: Entrance) -> ((i16, i16), Side) {
         match from {
-        	Entrance::Air => ((self.objects.iter().filter_map(
-        		|o| match o { Object{object_is: ObjectKind::CeilingDuct { .. }, is_on: true, ..} => Some(o.bounds.left() as i16), _ => None}
-        	).last().unwrap_or(232) + 24, room::VERT_CEILING as i16 + 10), Side::Right),
+        	Entrance::Air => ((self.entrance(from) + 24, room::VERT_CEILING as i16 + 10), Side::Right),
             Entrance::Spawn(side) => ((match side { Side::Left => 24, Side::Right => 488}, 50), -side),
             Entrance::Flying(side, height) => ((match side { Side::Left => 24, Side::Right => 488}, height as i16), -side),
+            Entrance::Down => ((self.entrance(from) + 88, room::VERT_FLOOR as i16 - 10), Side::Left),
+            Entrance::Up => ((self.entrance(from) + 88, room::VERT_CEILING as i16 + 10), Side::Left)
 //            Entrance::Appearing(target) => {let bounds = self.objects[target as usize].bounds; (bounds.x(), bounds.y(), Side::Right)}
         }
     }
@@ -272,7 +290,7 @@ impl Room {
         for o in &self.objects {
         	eprintln!("{o:?}");
         }
-        eprintln!("{:?}", self.animate);
+        eprintln!("{:?}", self.condition_code);
         Play {
             room: self,
             score: 0,
@@ -293,20 +311,22 @@ impl Room {
 }
 
 impl super::object::Object {
-    fn action(&self, mut test: Rect, motion: &mut(i16, i16), id: usize, air: bool) -> Option<Event> {
+    fn action(&self, mut test: Rect, motion: &mut(i16, i16), id: usize, state: &Play) -> Option<Event> {
         type Kind = ObjectKind;
         match (self.object_is, self.is_on) {
             (Kind::CeilingDuct { destination, .. }, false) => Some(Event::Control(State::Escaping(destination))),
-            (Kind::CeilingDuct {..}, true) | (Kind::CeilingVent {..}, _) => {if air {motion.1 = 8}; None},
+            (Kind::CeilingDuct {..}, true) | (Kind::CeilingVent {..}, _) => {if state.on.air {motion.1 = 8}; None},
 //            (Kind::Fan { faces, .. }, true) => Box::new(move |play, (h, _)| {*h += faces * 7; let flip = faces != play.facing; play.facing = faces; flip.then_some(Event::Control(State::Turning(0..11)))}),
             (kind, _) => match kind {
                 Kind::Table | Kind::Shelf | Kind::Books | Kind::Cabinet | Kind::Obstacle | Kind::Basket | Kind::Macintosh |
                 Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} => Some(Event::Control(DIE)),
                 Kind::Clock(value) | Kind::Bonus(value) => Some(Event::Action(Update::Score(value), Some(id))),
-                Kind::FloorVent { .. } | Kind::Candle { .. } => {if air {motion.1 = -6}; None},
+                Kind::FloorVent { .. } | Kind::Candle { .. } => {if state.on.air {motion.1 = -6}; None},
                 Kind::CeilingDuct { destination, .. } => if self.is_on {motion.1 = 8; None} else { Some(Event::Control(State::Escaping(destination))) },
                 Kind::Guitar => Some(Event::Action(Update::Start(Environment::Guitar), None)),
                 Kind::Switch(None) => Some(Event::Action(Update::Lights, None)),
+                Kind::Stair(Vertical::Up, to) => Some(Event::Control(State::Ascending(to, state.player_v))),
+                Kind::Stair(Vertical::Down, to) => Some(Event::Control(State::Descending(to, state.player_v))),
                 Kind::Wall => {
                     test >>= *motion;
                     if test.left() < self.bounds.right() && test.right() >= self.bounds.right() {
@@ -381,7 +401,7 @@ impl<'a> Play<'a> {
             let touch = Rect::cropped_on((0u16.saturating_add_signed(self.player_h), 0u16.saturating_add_signed(self.player_v)), 28, 10);
             for hazard in self.hazards.values_mut() { hazard.advance(); }
             let actions: Vec<_> = self.active_items().chain(walls).enumerate().filter_map(|(i, o)|
-            	(o.active_area() & touch).and_then(|_| o.action(touch, &mut motion, i, self.on.air))
+            	(o.active_area() & touch).and_then(|_| o.action(touch, &mut motion, i, self))
             ).chain(self.hazards.values().filter_map(|h|
                 h.is_on
                 .then(|| h.bounds())

@@ -79,14 +79,8 @@ pub fn play(context: &mut crate::App, pics: &HashMap<usize, Texture>, house: &[R
         run(context, &pics[&(room.theme_index() as usize)], (room_index, room), arrive)?
     } {
         score += points;
-        (room_index, arrive) = match at {
-        	Entrance::Air => (next, at),
-            Entrance::Flying(..) => {
-                if next.get() as usize > house.len() { eprintln!("Left house to pending room: {room_index:?}"); return Err(()) }
-                (next, at)
-            }
-            Entrance::Spawn(..) => (next, at)
-        };
+        if next.get() as usize > house.len() { eprintln!("Left house for pending room {}", next.get()); return Err(()) }
+        (room_index, arrive) = (next, at);
     } 
     eprintln!("Left house to {room_index:?}");
     Ok((score, room_index))
