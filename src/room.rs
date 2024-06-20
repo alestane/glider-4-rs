@@ -88,7 +88,7 @@ impl TryFrom<(u16, &[u8])> for Room {
 impl Room {
     pub fn walls(&self) -> impl SliceIndex<[Object], Output=[Object]> {
         fn step(i: Option<RoomId>) -> usize { i.is_some() as usize }
-        step(self.left_open)..=(step(self.right_open) + 1)
+        step(self.left_open)..=(2 - step(self.right_open))
     }
 
     pub fn theme_index(&self) -> u16 { self.back_pict_id }
