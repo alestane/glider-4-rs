@@ -14,6 +14,7 @@ fn index(i: usize) -> Range<usize> {
     start..(start + ROOM_SIZE)
 }
 
+#[allow(dead_code)]
 const fn limit(i: usize) -> usize { 58 + i * 16 }
 
 pub fn house() -> Box<[Room]> {
@@ -30,5 +31,6 @@ pub fn house() -> Box<[Room]> {
         Room::try_from((10, &resources::THE_HOUSE[index(9)])).unwrap(),
         Room::try_from((11, &resources::THE_HOUSE[index(10)])).unwrap(),
         Room::try_from((12, &resources::THE_HOUSE[index(11)])).unwrap(),
+        Room::try_from((13, &resources::THE_HOUSE[index(12)][..limit(0)])).unwrap(),
     ])
 }
