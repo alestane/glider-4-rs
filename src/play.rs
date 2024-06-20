@@ -126,7 +126,7 @@ enum State {
 	Escaping(Option<RoomId>),
     FadingIn(Range<u8>),
     FadingOut(Range<u8>),
-//    Turning(Range<u8>),
+    Turning(Range<u8>),
 //    Shredding(Rect),
     Burning(Range<u16>),
     Ascending(RoomId, i16),
@@ -155,9 +155,10 @@ impl std::iter::Iterator for State {
     fn next(&mut self) -> Option<Self::Item> {
         match self {
         	Self::Escaping(..) => None,
-            Self::FadingIn(phase) |
-            Self::FadingOut(phase) /* |
-            Self::Turning(phase) */ => phase.next().map(|_| (0, 0, false)),
+            Self::FadingIn(phase)   |
+            Self::FadingOut(phase)  |
+            Self::Turning(phase)  
+                => phase.next().map(|_| (0, 0, false)),
             Self::Burning(phase) => {if phase.next().is_none() {eprintln!("burn timeout"); *self = DIE}; Some((1, 3, true)) },
             /* Self::Shredding(bounds) => match bounds.height().get() {
                 0..36 => {bounds._bottom += 1; Some((0, (bounds.height().get() % 2) as i16))},
@@ -186,7 +187,7 @@ impl From<&State> for u8 {
             State::FadingOut(phase) => 48u8 + phase.start,
             //    State::Shredding(_) => 64u8,
             State::Burning(_) => 80u8,
-            //    State::Turning(phase) => 16u8 + phase.start,
+            State::Turning(phase) => 96u8 + phase.start,
         }
     }
 }
@@ -311,29 +312,29 @@ impl Room {
 }
 
 impl super::object::Object {
-    fn action(&self, mut test: Rect, motion: &mut(i16, i16), id: usize, state: &Play) -> Option<Event> {
+    fn action(&self, mut test: Rect, (h, v): &mut(i16, i16), id: usize, state: &Play) -> Option<Event> {
         type Kind = ObjectKind;
         match (self.object_is, self.is_on) {
             (Kind::CeilingDuct { destination, .. }, false) => Some(Event::Control(State::Escaping(destination))),
-            (Kind::CeilingDuct {..}, true) | (Kind::CeilingVent {..}, _) => {if state.on.air {motion.1 = 8}; None},
-//            (Kind::Fan { faces, .. }, true) => Box::new(move |play, (h, _)| {*h += faces * 7; let flip = faces != play.facing; play.facing = faces; flip.then_some(Event::Control(State::Turning(0..11)))}),
+            (Kind::CeilingDuct {..}, true) | (Kind::CeilingVent {..}, _) => {if state.on.air {*v = 8}; None},
+            (Kind::Fan { faces, .. }, true) => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(0..11))) }
             (kind, _) => match kind {
                 Kind::Table | Kind::Shelf | Kind::Books | Kind::Cabinet | Kind::Obstacle | Kind::Basket | Kind::Macintosh |
                 Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} => Some(Event::Control(DIE)),
                 Kind::Clock(value) | Kind::Bonus(value) => Some(Event::Action(Update::Score(value), Some(id))),
-                Kind::FloorVent { .. } | Kind::Candle { .. } => {if state.on.air {motion.1 = -6}; None},
-                Kind::CeilingDuct { destination, .. } => if self.is_on {motion.1 = 8; None} else { Some(Event::Control(State::Escaping(destination))) },
+                Kind::FloorVent { .. } | Kind::Candle { .. } => {if state.on.air {*v = -6}; None},
+                Kind::CeilingDuct { destination, .. } => if self.is_on {*v = 8; None} else { Some(Event::Control(State::Escaping(destination))) },
                 Kind::Guitar => Some(Event::Action(Update::Start(Environment::Guitar), None)),
                 Kind::Switch(None) => Some(Event::Action(Update::Lights, None)),
                 Kind::Stair(Vertical::Up, to) => Some(Event::Control(State::Ascending(to, state.player_v))),
                 Kind::Stair(Vertical::Down, to) => Some(Event::Control(State::Descending(to, state.player_v))),
                 Kind::Wall => {
-                    test >>= *motion;
+                    test >>= (*h, *v);
                     if test.left() < self.bounds.right() && test.right() >= self.bounds.right() {
-                        motion.0 += (self.bounds.right() - test.left()) as i16;
+                        *h += (self.bounds.right() - test.left()) as i16;
                     }
                     if test.right() > self.bounds.left() && test.left() <= self.bounds.left() {
-                        motion.0 -= (test.right() - self.bounds.left()) as i16;
+                        *h -= (test.right() - self.bounds.left()) as i16;
                     }
                     Some(Event::Action(Update::Bump, None))
                 }

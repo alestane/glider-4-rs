@@ -88,16 +88,19 @@ impl Object {
 
     pub fn active_area(&self) -> Rect {
         type Kind = ObjectKind;
+        let bounds = self.bounds;
         match self.object_is {
-            Kind::FloorVent { height } | Kind::Candle {height} => Rect{top_: height, bottom_: room::VERT_FLOOR, left_: self.bounds.x() - 8, right_: self.bounds.x() + 8},
-            Kind::CeilingVent { height } => Rect{top_: self.bounds.bottom(), bottom_: height, left_: self.bounds.x() - 8, right_: self.bounds.x() + 8},
+            Kind::FloorVent { height } | Kind::Candle {height} => Rect{top_: height, bottom_: room::VERT_FLOOR, left_: bounds.x() - 8, right_: bounds.x() + 8},
+            Kind::CeilingVent { height } => Rect{top_: bounds.bottom(), bottom_: height, left_: bounds.x() - 8, right_: bounds.x() + 8},
             Kind::CeilingDuct { height, .. } => if self.is_on {
-            	let middle = self.bounds.x(); Rect{left_: middle - 8, right_: middle + 8, top_: room::VERT_CEILING, bottom_: height}
+            	let middle = bounds.x(); Rect{left_: middle - 8, right_: middle + 8, top_: room::VERT_CEILING, bottom_: height}
             } else {
-            	Rect{bottom_: self.bounds.top_ + 8, ..self.bounds }
+            	Rect{bottom_: bounds.top_ + 8, ..bounds }
             },
-            Kind::Stair(Vertical::Up, ..) => Rect{left_: self.bounds.left() + 32, top_: self.bounds.top(), right_: self.bounds.right() - 32, bottom_: self.bounds.top() + 8},
-            Kind::Stair(Vertical::Down, ..) => Rect{left_: self.bounds.left() + 32, top_: self.bounds.bottom() - 8, right_: self.bounds.right() - 32, bottom_: self.bounds.bottom()},
+            Kind::Fan { faces: Side::Right, range } => Rect{left_: bounds.right(), top_: bounds.top() + 10, right_: range, bottom_: bounds.top() + 30},
+            Kind::Fan { faces: Side::Left, range } => Rect{left_: range, top_: bounds.top() + 10, right_: bounds.left(), bottom_: bounds.top() + 30},
+            Kind::Stair(Vertical::Up, ..) => Rect{left_: bounds.left() + 32, top_: bounds.top(), right_: bounds.right() - 32, bottom_: bounds.top() + 8},
+            Kind::Stair(Vertical::Down, ..) => Rect{left_: bounds.left() + 32, top_: bounds.bottom() - 8, right_: bounds.right() - 32, bottom_: bounds.bottom()},
             _ => self.bounds
         }
     }
