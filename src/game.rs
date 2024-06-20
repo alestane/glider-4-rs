@@ -87,6 +87,6 @@ pub fn play(context: &mut crate::App, pics: &HashMap<usize, Texture>, house: &[R
             }
             Entrance::Spawn(..) => (next, at)
         };
-    }
+    } eprintln!("Left house to {room_index:?}");
     Ok((score, room_index))
 }
