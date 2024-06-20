@@ -96,6 +96,8 @@ impl Object {
             } else {
             	Rect{bottom_: self.bounds.top_ + 8, ..self.bounds }
             },
+            Kind::Stair(Vertical::Up, ..) => Rect{left_: self.bounds.left() + 32, top_: self.bounds.top(), right_: self.bounds.right() - 32, bottom_: self.bounds.top() + 8},
+            Kind::Stair(Vertical::Down, ..) => Rect{left_: self.bounds.left() + 32, top_: self.bounds.bottom() - 8, right_: self.bounds.right() - 32, bottom_: self.bounds.bottom()},
             _ => self.bounds
         }
     }

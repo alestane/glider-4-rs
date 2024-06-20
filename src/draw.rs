@@ -1,6 +1,6 @@
 use std::{collections::HashMap, num::NonZero, iter::repeat};
 
-use glider::{Side, Object, ObjectKind, prelude::Enemy};
+use glider::{prelude::Enemy, Object, ObjectKind, Side, Vertical};
 use sdl2::{pixels::{Color, PixelFormatEnum}, rect::{Point, Rect}, render::{BlendMode, Canvas, RenderTarget, Texture}, surface::Surface, video::Window};
 use crate::{room::{SCREEN_HEIGHT, SCREEN_WIDTH, VERT_FLOOR}, space, atlas::{self, Atlas}, resources};
 
@@ -45,6 +45,7 @@ fn appearance(kind: &ObjectKind) -> Option<(&'static str, usize)> {
         ObjectKind::Paper(..) => ("collectible", atlas::PAPER),
         ObjectKind::Outlet{..} => ("power", atlas::OUTLET),
         ObjectKind::Guitar => ("visual", atlas::GUITAR),
+        ObjectKind::Stair(direction, ..) => ("stairs", match direction {Vertical::Up => atlas::STAIRS_UP, Vertical::Down => atlas::STAIRS_DOWN}),
         _what => return None
     })
 }
