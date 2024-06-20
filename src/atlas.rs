@@ -4,7 +4,7 @@ use sdl2::{image::LoadTexture, render::Texture};
 
 use crate::space::Rect;
 
-const ITEMS: [Rect; 97] = [
+const ITEMS: [Rect; 99] = [
     Rect::new_signed(256, 0, 304, 11),      // shadow right
 
     Rect::new_signed(0,  0, 48, 20),        // forward right
@@ -124,6 +124,9 @@ const ITEMS: [Rect; 97] = [
     Rect::new_signed(192, 155, 208, 162),
     Rect::new_signed(192, 163, 208, 170),
     Rect::new_signed(192, 171, 208, 178),
+
+    Rect::new_signed(1, 343, 162, 597),
+    Rect::new_signed(163, 343, 324, 597),
 ];
 
 const GLIDE_RIGHT   : Range<usize> = 0..12;
@@ -206,7 +209,9 @@ pub const RISING    : Range<usize> = 1..4;
 const RUBBER        : Range<usize> = 94..97;
 pub const SHOT      : Range<usize> = 0..3;
 
-const STAIRS        : Rect = Rect::new_signed(0, 0, 161, 254);
+const STAIRS        : Range<usize> = 97..99;
+pub const STAIRS_UP     : usize = 0;
+pub const STAIRS_DOWN   : usize = 1;
 
 pub struct Atlas<'a> {
     pixels: sdl2::render::Texture<'a>,
@@ -241,6 +246,7 @@ pub fn glider_sprites<'a>(pixels: sdl2::render::Texture<'a>) -> Atlas<'a> {
             ("dart", &ITEMS[DART]),
             ("copter", &ITEMS[COPTER]),
             ("balloon", &ITEMS[BALLOON]),
+            ("stairs", &ITEMS[STAIRS]),
         ]
     );
     Atlas {
