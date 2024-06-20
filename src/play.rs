@@ -306,6 +306,7 @@ impl super::object::Object {
                 Kind::FloorVent { .. } | Kind::Candle { .. } => {if air {motion.1 = -6}; None},
                 Kind::CeilingDuct { destination, .. } => if self.is_on {motion.1 = 8; None} else { Some(Event::Control(State::Escaping(destination))) },
                 Kind::Guitar => Some(Event::Action(Update::Start(Environment::Guitar), None)),
+                Kind::Switch(None) => Some(Event::Action(Update::Lights, None)),
                 Kind::Wall => {
                     test >>= *motion;
                     if test.left() < self.bounds.right() && test.right() >= self.bounds.right() {
@@ -390,6 +391,10 @@ impl<'a> Play<'a> {
                 match e {
                     Event::Action(a, remove) => {
                         if let Some(ref used) = remove {self.items.remove(used);};
+                        match a {
+                            Update::Lights => self.on.lights = true,
+                            _ => ()
+                        };
                         (Some(a), None)
                     },
                     Event::Control(c) => (None, Some(c)),
@@ -415,6 +420,9 @@ impl<'a> Play<'a> {
     fn award(&mut self, value: u16) {
         self.score += value as u32;
     }
+
+    pub fn dark(&self) -> bool { !self.on.lights }
+    pub fn cold(&self) -> bool { !self.on.air }
 
     pub fn active_items(&self) -> impl Iterator<Item = &Object> {
         self.items.iter()
