@@ -1,10 +1,18 @@
-use std::{clone::Clone, cmp::{Eq, PartialEq}, fmt::Debug, marker::Copy, num::NonZero, ops::{Add, AddAssign}};
+use std::{clone::Clone, cmp::{Eq, PartialEq}, fmt::Debug, marker::Copy, num::NonZero, ops::{Add, AddAssign, Mul}};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Point<N: Sized> {
 	x_: N,
 	y_: N,
+}
+
+impl Default for Point<u16> {
+    fn default() -> Self { Self {x_: 0, y_: 0} }
+}
+
+impl Default for Point<i16> {
+    fn default() -> Self { Self {x_: 0, y_: 0} }
 }
 
 #[const_trait]
@@ -169,6 +177,9 @@ impl From<(NonZero<u16>, NonZero<u16>)> for Size {
     fn from(value: (NonZero<u16>, NonZero<u16>)) -> Self { Self{width_: value.0, height_: value.1} }
 }
 
+pub(crate) enum Span {Left = -1, Center = 0, Right = 1}
+pub(crate) enum Rise {Top = -1, Center = 0, Bottom = 1}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rect<N: Debug + Clone + Copy + PartialEq + Eq + TryInto<u16>> {
@@ -187,6 +198,14 @@ impl Rect<u16> {
         Some(Self {
             left_, top_, width_, height_,
         })
+    }
+
+    pub(crate) const unsafe fn new_unchecked(left: u16, top: u16, right: u16, bottom: u16) -> Self {
+        let left_ = if right < left {right} else {left};
+        let top_ = if bottom < top {bottom} else {top};
+        let width_ = NonZero::new_unchecked(right.abs_diff(left));
+        let height_ = NonZero::new_unchecked(bottom.abs_diff(top));
+        Self {left_, top_, width_, height_}
     }
 
     pub(crate) fn cropped_on(center: (u16, u16), width: NonZero<u16>, height: NonZero<u16>) -> Option<Self> {
@@ -213,18 +232,24 @@ impl Rect<u16> {
         }
     }
 
-    pub fn left  (&self) -> u16 { self.left_   }
-    pub fn top   (&self) -> u16 { self.top_    }
-    pub fn right (&self) -> u16 { self.left_ + self.width_.get() }
-    pub fn bottom(&self) -> u16 { self.top_ + self.height_.get()  }
+    pub const fn left  (&self) -> u16 { self.left_   }
+    pub const fn top   (&self) -> u16 { self.top_    }
+    pub const fn right (&self) -> u16 { self.left_ + self.width_.get() }
+    pub const fn bottom(&self) -> u16 { self.top_ + self.height_.get()  }
 
-    pub fn width (&self) -> NonZero<u16> { self.width_ }
-    pub fn height(&self) -> NonZero<u16> { self.height_ }
+    pub const fn width (&self) -> NonZero<u16> { self.width_ }
+    pub const fn height(&self) -> NonZero<u16> { self.height_ }
 
-    pub fn x(&self) -> u16 { self.left_ + self.width_.get() / 2 }
-    pub fn y(&self) -> u16 { self.top_ + self.height_.get() / 2 }
+    pub const fn x(&self) -> u16 { self.left_ + self.width_.get() / 2 }
+    pub const fn y(&self) -> u16 { self.top_ + self.height_.get() / 2 }
 
-    pub fn center(&self) -> Point<u16> {Point::new( self.x(), self.y() )}
+    pub const fn center(&self) -> Point<u16> {Point::new( self.x(), self.y() )}
+}
+
+impl Default for Rect<u16> {
+    fn default() -> Self {
+        unsafe { Rect{left_: 0, top_: 0, width_: NonZero::new_unchecked(1), height_: NonZero::new_unchecked(1)} }
+    }
 }
 
 impl std::ops::BitAnd for Rect<u16> {
@@ -281,5 +306,29 @@ impl<I: Into<(i16, i16)>> std::ops::ShrAssign<I> for Rect<u16> {
         let (width, height) = (self.width_.get(), self.height_.get());
         self.left_ = self.left_.saturating_add_signed(rhs.0).min(self.left_.saturating_add(width) - width);
         self.top_ = self.top_.saturating_add_signed(rhs.1).min(self.top_.saturating_add(height) - height);
+    }
+}
+
+impl Mul<(Span, Rise)> for Rect<u16> {
+    type Output = Point<u16>;
+    fn mul(self, (h, v): (Span, Rise)) -> Self::Output {
+        let x_ = match h {
+            Span::Left => self.left(),
+            Span::Center => self.x(),
+            Span::Right => self.right(),
+        };
+        let y_ = match v {
+            Rise::Top => self.top(),
+            Rise::Center => self.y(),
+            Rise::Bottom => self.bottom(),
+        };
+        Self::Output{x_, y_}
+    }
+}
+
+impl Mul<(Rise, Span)> for Rect<u16> {
+    type Output = Point<u16>;
+    fn mul(self, (v, h): (Rise, Span)) -> Self::Output {
+        self * (h, v)
     }
 }
