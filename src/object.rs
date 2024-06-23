@@ -86,7 +86,7 @@ impl Object {
     }
  
     pub fn active_area(&self) -> Rect<u16> {
-        let position = self.position;
+        let _position = self.position;
         match self.kind {
             // Kind::FloorVent { height } | Kind::Candle {height} => Rect::new_forced(position.x() - 8, position.y() - height, position.x() + 8, position.y()),
             // Kind::CeilingVent { height } => Rect{top_: bounds.bottom(), bottom_: height, left_: bounds.x() - 8, right_: bounds.x() + 8},
