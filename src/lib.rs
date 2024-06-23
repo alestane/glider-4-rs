@@ -21,6 +21,9 @@ mod prelude {
 mod cart;
 
 pub use cart::{Point, Rect, Size};
+type Bounds = Rect<u16>;
+type Position = Point<u16>;
+type Reference = Point<i16>;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Input {
