@@ -1,4 +1,4 @@
-use std::{fmt::Debug, clone::Clone, marker::Copy, cmp::{PartialEq, Eq}, num::NonZero};
+use std::{clone::Clone, cmp::{Eq, PartialEq}, fmt::Debug, marker::Copy, num::NonZero, ops::{Add, AddAssign}};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,12 +60,12 @@ impl TryFrom<Point<u16>> for Point<i16> {
     }
 }
 
-impl From<(i16, i16)> for Point<i16> {
-	fn from((x_, y_): (i16, i16)) -> Self { Self {x_, y_} }
+impl<N: Copy> From<(N, N)> for Point<N> {
+    fn from((x_, y_): (N, N)) -> Self { Self{x_, y_} }
 }
 
-impl From<Point<i16>> for (i16, i16) {
-	fn from(Point{x_, y_}: Point<i16>) -> Self { (x_, y_) }
+impl<N: Copy> From<Point<N>> for (N, N) {
+	fn from(Point{x_, y_}: Point<N>) -> Self { (x_, y_) }
 }
 
 impl std::ops::Neg for Point<i16> {
@@ -73,7 +73,7 @@ impl std::ops::Neg for Point<i16> {
 	fn neg(self) -> Self { Self {x_: -self.x_, y_: -self.y_} }
 }
 
-impl<I: Into<Point<i16>>> std::ops::AddAssign<I> for Point<i16> {
+impl<N: AddAssign<N>, I: Into<Point<N>>> AddAssign<I> for Point<N> {
 	fn add_assign(&mut self, rhs: I) {
 		let Point{x_, y_} = rhs.into();
 		self.x_ += x_;
@@ -81,7 +81,7 @@ impl<I: Into<Point<i16>>> std::ops::AddAssign<I> for Point<i16> {
 	}
 }
 
-impl<I: Into<Point<i16>>> std::ops::Add<I> for Point<i16> {
+impl<N: Add<N, Output=N>, I: Into<Point<N>>> Add<I> for Point<N>  where Self: AddAssign<I>{ 
 	type Output = Self;
 	fn add(mut self, rhs: I) -> Self::Output { self += rhs; self }
 }
