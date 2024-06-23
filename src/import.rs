@@ -1,18 +1,88 @@
-use super::{*, room::*, object::*, house::*};
+use std::fmt::Display;
 
-fn string_from_pascal(bytes: &[u8]) -> String {
+use super::{*, 
+    // room::*, 
+    object::Object, 
+    // house::*
+};
+
+/* fn string_from_pascal(bytes: &[u8]) -> String {
     String::from_utf8_lossy(match bytes {
         [len, chars@..] if *len as usize <= chars.len() => &chars[..*len as usize],
         [_, chars@..] => chars,
         _ => return String::new()
     }).to_string()
+} */
+
+mod binary {
+    fn take_partition<I: IntoIterator, const PITCH: usize, const SIZE: usize>(i: I) -> [[I::Item; PITCH]; SIZE] where I::Item: core::fmt::Debug + Copy, [(); PITCH * SIZE]: {
+        let contents = i.into_iter()
+            .next_chunk::<{PITCH * SIZE}>().unwrap();
+        contents
+            .as_chunks::<PITCH>().0[0..SIZE].try_into().unwrap()
+    }
+    
+    #[disclose(super)]
+    #[derive(Debug, Clone, Copy)]
+    pub(super) struct Object {
+        object_is: [u8; 2], // 2
+        bounds: [[u8; 2]; 4], // 8 // 10
+        amount: [u8; 2], // 2 // 12
+        extra: [u8; 2], // 2 // 14
+        is_on: [u8; 2], // 1 // 16
+    }
+    
+    impl Default for Object {
+        fn default() -> Self {
+            Self {
+                object_is: [0;2],
+                bounds: [[0;2];4],
+                amount: [0;2],
+                extra: [0;2],
+                is_on: [0;2],
+            }
+        }
+    }
+    
+    impl FromIterator<u8> for Object {
+        fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
+            let mut iter = iter.into_iter();
+            Self {
+                object_is: iter.next_chunk().unwrap(),
+                bounds: take_partition(&mut iter),
+                // iter.next_chunk::<8>().unwrap().as_chunks().0[0..4].try_into().unwrap(),
+                amount: iter.next_chunk().unwrap(),
+                extra: iter.next_chunk().unwrap(),
+                is_on: iter.next_chunk().unwrap()
+            }
+        }
+    }
 }
 
-impl ObjectKind {
-    pub fn try_from_raw(kind: u16, amount: u16, extra: u16) -> Result<Self, Option<()>> {
-        use ObjectKind::*;
+#[derive(Debug, Clone, Copy)]
+enum BadObjectError {
+    OutOfRoom(Bounds),
+    UnknownKind(u16),
+}
 
-        Ok(match kind {
+impl Display for BadObjectError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::OutOfRoom(b) => write!(f, "object bounding rectangle {b:?} extends outside of room"),
+            Self::UnknownKind(kind_id) => write!(f, "object declarator \"{kind_id}\" does not indicate a recognized object kind"),
+
+        }
+    }
+}
+
+impl std::error::Error for BadObjectError {}
+
+impl TryFrom<binary::Object> for Object {
+    type Error = BadObjectError;
+    fn try_from(value: binary::Object) -> Result<Self, Self::Error> {
+        use object::Kind;
+//        let bounds: Bounds = value.bounds.into();
+/*        Ok(match kind {
              0 => return Err(None),
 
              1 => Table,
@@ -58,12 +128,13 @@ impl ObjectKind {
             45 => Stair(Vertical::Down, amount.into()),
 
             _ => return Err(Some( () ) )
-        })
+        })*/
+        Ok(Self{kind: Kind::Painting, position: Position::default()})
     }
 
 }
-
-impl From<[u16; 4]> for Rect {
+/*
+impl From<[u16; 4]> for Rect<u16> {
     fn from(data: [u16; 4]) -> Self {
         (data[1], data[0], data[3], data[2]).into()
     }
@@ -71,18 +142,28 @@ impl From<[u16; 4]> for Rect {
 
 impl From<ObjectData> for Option<Object> {
     fn from(value: ObjectData) -> Self {
+        let bounds: Rect<u16> = value.bounds.map(|mem| u16::from_be_bytes(mem)).into();
         ObjectKind::try_from_raw(u16::from_be_bytes(value.object_is), u16::from_be_bytes(value.amount), u16::from_be_bytes(value.extra))
         .ok().map(|kind|
             Object {
                 object_is: kind,
-                bounds: value.bounds.map(|mem| u16::from_be_bytes(mem)).into(),
-                is_on: value.is_on[0] != 0,
+                position: match kind {
+                    ObjectKind::FloorVent { .. } => Point::new(bounds.x(), bounds.top()),
+                    ObjectKind::CeilingVent { .. } | 
+                    ObjectKind::CeilingVent { .. } |
+                    ObjectKind::Basket |
+                    ObjectKind::Battery(..) 
+                        => Point::new(bounds.x(), bounds.bottom()),
+                    ObjectKind::
+//                    _ => Rect::<u16>::from(value.bounds.map(|mem| u16::from_be_bytes(mem))).center()
+                },
+                starts_on: value.is_on[0] != 0,
             }
         )
     }
-}
+} */
 
-impl TryFrom<u16> for Deactivated {
+/* impl TryFrom<u16> for Deactivated {
     type Error = ();
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         Ok(match value {
@@ -125,9 +206,9 @@ impl From<(u16, RoomData)> for Room {
             ),
         }
     }
-}
+} */
 
-impl From<HouseData> for House {
+/* impl From<HouseData> for House {
     fn from(value: HouseData) -> Self {
         let n_rooms = u16::from_be_bytes(value.n_rooms) as usize;
         Self {
@@ -153,50 +234,9 @@ impl From<HouseData> for House {
         }
     }
 }
+ */
 
-fn take_partition<I: IntoIterator, const PITCH: usize, const SIZE: usize>(i: I) -> [[I::Item; PITCH]; SIZE] where I::Item: core::fmt::Debug + Copy, [(); PITCH * SIZE]: {
-    let contents = i.into_iter()
-        .next_chunk::<{PITCH * SIZE}>().unwrap();
-    contents
-        .as_chunks::<PITCH>().0[0..SIZE].try_into().unwrap()
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct ObjectData {
-    object_is: [u8; 2], // 2
-    bounds: [[u8; 2]; 4], // 8 // 10
-    amount: [u8; 2], // 2 // 12
-    extra: [u8; 2], // 2 // 14
-    is_on: [u8; 2], // 1 // 16
-}
-
-impl Default for ObjectData {
-    fn default() -> Self {
-        Self {
-            object_is: [0;2],
-            bounds: [[0;2];4],
-            amount: [0;2],
-            extra: [0;2],
-            is_on: [0;2],
-        }
-    }
-}
-
-impl FromIterator<u8> for ObjectData {
-    fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
-        let mut iter = iter.into_iter();
-        Self {
-            object_is: iter.next_chunk().unwrap(),
-            bounds: take_partition(&mut iter),
-            // iter.next_chunk::<8>().unwrap().as_chunks().0[0..4].try_into().unwrap(),
-            amount: iter.next_chunk().unwrap(),
-            extra: iter.next_chunk().unwrap(),
-            is_on: iter.next_chunk().unwrap()
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
+/* #[derive(Debug, Clone, Copy)]
 pub (crate) struct RoomData {
     name: [u8; 26], // 26
     object_count: [u8; 2], // 2 // 28
@@ -226,9 +266,9 @@ impl FromIterator<u8> for RoomData {
             objects: (0..16).map(|_| iter.next_chunk::<16>().map(|bytes| ObjectData::from_iter(bytes)).unwrap_or_default()).next_chunk().unwrap(),
         }
     }
-}
+} */
 
-#[derive(Debug, Clone, Copy)]
+/* #[derive(Debug, Clone, Copy)]
 pub (crate) struct HouseData {
     version: [u8; 2], // 2
     n_rooms: [u8; 2], // 2 // 4
@@ -264,4 +304,4 @@ impl FromIterator<u8> for HouseData {
             rooms: (0..40).map(|_| RoomData::from_iter(&mut iter)).next_chunk().unwrap(),
         }
     }
-}
+} */
