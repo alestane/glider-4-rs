@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, num::NonZero};
 
 use super::{*, 
     // room::*, 
@@ -61,6 +61,7 @@ mod binary {
 
 #[derive(Debug, Clone, Copy)]
 enum BadObjectError {
+    FaultyDimensions(u16, u16, u16, u16),
     OutOfRoom(Bounds),
     UnknownKind(u16),
 }
@@ -68,6 +69,7 @@ enum BadObjectError {
 impl Display for BadObjectError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::FaultyDimensions(l, t, r, b) => write!(f, "object bounding rectangle ({l}, {t}, {r}, {b}) is invalid"),
             Self::OutOfRoom(b) => write!(f, "object bounding rectangle {b:?} extends outside of room"),
             Self::UnknownKind(kind_id) => write!(f, "object declarator \"{kind_id}\" does not indicate a recognized object kind"),
 
@@ -80,6 +82,11 @@ impl std::error::Error for BadObjectError {}
 impl TryFrom<binary::Object> for Object {
     type Error = BadObjectError;
     fn try_from(value: binary::Object) -> Result<Self, Self::Error> {
+        let Ok(bounds): Result<Bounds, _> = value.bounds.try_into() else { 
+            let [top, left, bottom, right] = value.bounds.map(u16::from_be_bytes);
+            return Err(BadObjectError::FaultyDimensions(left, top, right, bottom))
+        };
+        if bounds.right() > room::SCREEN_WIDTH || bounds.bottom() > room::SCREEN_HEIGHT { return Err(BadObjectError::OutOfRoom(bounds)) };
         use object::Kind;
 //        let bounds: Bounds = value.bounds.into();
 /*        Ok(match kind {
@@ -133,13 +140,30 @@ impl TryFrom<binary::Object> for Object {
     }
 
 }
-/*
-impl From<[u16; 4]> for Rect<u16> {
-    fn from(data: [u16; 4]) -> Self {
-        (data[1], data[0], data[3], data[2]).into()
+
+pub enum BadRectError{
+    Empty{width: Option<NonZero<u16>>, height: Option<NonZero<u16>>},
+    Inverted,
+}
+
+impl TryFrom<[u16; 4]> for Bounds {
+    type Error = BadRectError;
+    fn try_from(data: [u16; 4]) -> Result<Self, Self::Error> {
+        let (true, true) = (data[3] > data[1], data[2] > data[0]) else { return Err(BadRectError::Inverted)};
+        match (NonZero::new(data[3] - data[1]), NonZero::new(data[2] - data[0])) {
+            (Some(..), Some(..)) => Ok(unsafe{ Rect::new_unchecked(data[1], data[0], data[3], data[2])}),
+            (width, height) => Err(BadRectError::Empty{width, height}),
+        }
     }
 }
 
+impl TryFrom<[[u8; 2]; 4]> for Bounds {
+    type Error = <Bounds as TryFrom<[u16;4]>>::Error;
+    fn try_from(value: [[u8; 2]; 4]) -> Result<Self, Self::Error> {
+        value.map(u16::from_be_bytes).try_into()
+    }
+}
+/*
 impl From<ObjectData> for Option<Object> {
     fn from(value: ObjectData) -> Self {
         let bounds: Rect<u16> = value.bounds.map(|mem| u16::from_be_bytes(mem)).into();
