@@ -79,12 +79,12 @@ pub struct Object {
     kind: Kind,
     position: Point<u16>,
 }
-/* 
+
 impl Object {
     pub fn collidable(&self) -> bool {
-        match self.kind { Kind::Painting => false, _ => true }
+        match self.kind { Kind::Painting | Kind::Outlet { .. } | Kind::Window( .. ) | Kind::Ball{..} => false, _ => true }
     }
-
+/* 
     pub fn active_area(&self) -> Rect<u16> {
         let position = self.position;
         match self.kind {
@@ -102,19 +102,18 @@ impl Object {
             _ => self.bounds
         }
     }
-
+ */
     pub fn dynamic(&self) -> bool {
-        match self.object_is {
-            ObjectKind::Clock(_) |
-            ObjectKind::Paper(_) |
-            ObjectKind::Grease{..} |
-            ObjectKind::Battery(_) |
-            ObjectKind::RubberBands(_) |
-            ObjectKind::Drip{..} |
-            ObjectKind::Ball{..} |
-            ObjectKind::Fishbowl{..} => true,
+        match self.kind {
+            Kind::Clock(_) |
+            Kind::Paper(_) |
+            Kind::Grease{..} |
+            Kind::Battery(_) |
+            Kind::RubberBands(_) |
+            Kind::Drip{..} |
+            Kind::Ball{..} |
+            Kind::Fishbowl{..} => true,
             _ => false
         }
     }
 }
- */
