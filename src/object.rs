@@ -84,25 +84,25 @@ impl Object {
     pub fn collidable(&self) -> bool {
         match self.kind { Kind::Painting | Kind::Outlet { .. } | Kind::Window( .. ) | Kind::Ball{..} => false, _ => true }
     }
-/* 
+ 
     pub fn active_area(&self) -> Rect<u16> {
         let position = self.position;
         match self.kind {
-            Kind::FloorVent { height } | Kind::Candle {height} => Rect::new_forced(position.x() - 8, position.y() - height, position.x() + 8, position.y()),
-            Kind::CeilingVent { height } => Rect{top_: bounds.bottom(), bottom_: height, left_: bounds.x() - 8, right_: bounds.x() + 8},
-            Kind::CeilingDuct { height, .. } => if self.is_on {
-            	let middle = bounds.x(); Rect{left_: middle - 8, right_: middle + 8, top_: room::VERT_CEILING, bottom_: height}
-            } else {
-            	Rect{bottom_: bounds.top_ + 8, ..bounds }
-            },
-            Kind::Fan { faces: Side::Right, range } => Rect{left_: bounds.right(), top_: bounds.top() + 10, right_: range, bottom_: bounds.top() + 30},
-            Kind::Fan { faces: Side::Left, range } => Rect{left_: range, top_: bounds.top() + 10, right_: bounds.left(), bottom_: bounds.top() + 30},
-            Kind::Stair(Vertical::Up, ..) => Rect{left_: bounds.left() + 32, top_: bounds.top(), right_: bounds.right() - 32, bottom_: bounds.top() + 8},
-            Kind::Stair(Vertical::Down, ..) => Rect{left_: bounds.left() + 32, top_: bounds.bottom() - 8, right_: bounds.right() - 32, bottom_: bounds.bottom()},
-            _ => self.bounds
+            // Kind::FloorVent { height } | Kind::Candle {height} => Rect::new_forced(position.x() - 8, position.y() - height, position.x() + 8, position.y()),
+            // Kind::CeilingVent { height } => Rect{top_: bounds.bottom(), bottom_: height, left_: bounds.x() - 8, right_: bounds.x() + 8},
+            // Kind::CeilingDuct { height, .. } => if self.is_on {
+            // 	let middle = bounds.x(); Rect{left_: middle - 8, right_: middle + 8, top_: room::VERT_CEILING, bottom_: height}
+            // } else {
+            // 	Rect{bottom_: bounds.top_ + 8, ..bounds }
+            // },
+            // Kind::Fan { faces: Side::Right, range } => Rect{left_: bounds.right(), top_: bounds.top() + 10, right_: range, bottom_: bounds.top() + 30},
+            // Kind::Fan { faces: Side::Left, range } => Rect{left_: range, top_: bounds.top() + 10, right_: bounds.left(), bottom_: bounds.top() + 30},
+            // Kind::Stair(Vertical::Up, ..) => Rect{left_: bounds.left() + 32, top_: bounds.top(), right_: bounds.right() - 32, bottom_: bounds.top() + 8},
+            // Kind::Stair(Vertical::Down, ..) => Rect{left_: bounds.left() + 32, top_: bounds.bottom() - 8, right_: bounds.right() - 32, bottom_: bounds.bottom()},
+            _ => unsafe { Rect::clamped_on(self.position.into(), NonZero::new_unchecked(1), NonZero::new_unchecked(1)) }
         }
     }
- */
+
     pub fn dynamic(&self) -> bool {
         match self.kind {
             Kind::Clock(_) |
