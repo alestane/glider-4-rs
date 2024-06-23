@@ -1,60 +1,60 @@
 use super::*;
-use super::room::RoomId;
+use std::num::NonZero;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(transparent)]
-pub struct ObjectId(pub NonZero<u16>);
+pub struct Id(pub NonZero<u16>);
 
-impl std::ops::Deref for ObjectId {
+impl std::ops::Deref for Id {
     type Target = NonZero<u16>;
     fn deref(&self) -> &Self::Target {
-        let ObjectId(ref value) = self;
+        let Id(ref value) = self;
         value
     }
 }
 
-impl From<u16> for ObjectId {
+impl From<u16> for self::Id {
 	fn from(value: u16) -> Self { unsafe { Self( NonZero::new_unchecked( value.saturating_sub(1) + 1 ) ) } }
 }
 
-impl From<usize> for ObjectId {
+impl From<usize> for self::Id {
 	fn from(value: usize) -> Self { unsafe { Self( NonZero::new_unchecked((value + 1) as u16) ) } }
 }
 
-impl From<ObjectId> for usize {
-	fn from(value: ObjectId) -> Self { value.0.get() as usize - 1 }
+impl From<self::Id> for usize {
+	fn from(value: self::Id) -> Self { value.0.get() as usize - 1 }
 }
 
-impl From<ObjectId> for Option<u16> {
-    fn from(value: ObjectId) -> Self { Some(value.0.get()) }
+impl From<self::Id> for Option<u16> {
+    fn from(value: self::Id) -> Self { Some(value.0.get()) }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ObjectKind {
-    Table,
-    Shelf,
+pub enum Kind {
+    Table{width: NonZero<u16>, height: NonZero<u16>},
+    Shelf{width: NonZero<u16>, height: NonZero<u16>},
     Books,
-    Cabinet,
-    Exit{to: RoomId},
-    Obstacle,
+    Cabinet(Size),
+    Exit{to: Option<room::Id>},
+    Obstacle(Size),
 
     FloorVent{height: u16},
     CeilingVent{height: u16},
-    CeilingDuct{height: u16, destination: Option<RoomId>},
+    CeilingDuct{height: u16, ready: bool, destination: Option<room::Id>},
     Candle{height: u16},
-    Fan{faces: Side, range: u16},
+    Fan{faces: Side, range: u16, ready: bool},
 
     Clock(u16),
     Paper(u16),
-    Grease{range: u16},
-    Bonus(u16),
+    Grease{range: u16, ready: bool},
+    Bonus(u16, Size),
     Battery(u16),
     RubberBands(u16),
 
-    Switch(Option<ObjectId>),
-    Outlet{delay: u16},
+    Switch(Option<Id>),
+    Outlet{delay: u16, ready: bool},
     Thermostat,
-    Shredder,
+    Shredder{ready: bool},
     Guitar,
 
     Drip{range: u16},
@@ -62,35 +62,33 @@ pub enum ObjectKind {
     Ball{range: u16},
     Fishbowl{range: u16, delay: u16},
     Teakettle{range: u16},
-    Window,
+    Window(Size, bool),
 
     Painting,
-    Mirror,
+    Mirror(Size),
     Basket,
     Macintosh,
-    Stair(Vertical, RoomId),
+    Stair(Vertical, room::Id),
 
-    Wall,
+    Wall(Side),
 }
 
 #[disclose]
 #[derive(Debug, Clone, Copy)]
 pub struct Object {
-    object_is: ObjectKind,
-    bounds: Rect,
-    is_on: bool,
+    kind: Kind,
+    position: Point<u16>,
 }
-
+/* 
 impl Object {
     pub fn collidable(&self) -> bool {
-        match self.object_is { ObjectKind::Painting => false, _ => true }
+        match self.kind { Kind::Painting => false, _ => true }
     }
 
-    pub fn active_area(&self) -> Rect {
-        type Kind = ObjectKind;
-        let bounds = self.bounds;
-        match self.object_is {
-            Kind::FloorVent { height } | Kind::Candle {height} => Rect{top_: height, bottom_: room::VERT_FLOOR, left_: bounds.x() - 8, right_: bounds.x() + 8},
+    pub fn active_area(&self) -> Rect<u16> {
+        let position = self.position;
+        match self.kind {
+            Kind::FloorVent { height } | Kind::Candle {height} => Rect::new_forced(position.x() - 8, position.y() - height, position.x() + 8, position.y()),
             Kind::CeilingVent { height } => Rect{top_: bounds.bottom(), bottom_: height, left_: bounds.x() - 8, right_: bounds.x() + 8},
             Kind::CeilingDuct { height, .. } => if self.is_on {
             	let middle = bounds.x(); Rect{left_: middle - 8, right_: middle + 8, top_: room::VERT_CEILING, bottom_: height}
@@ -119,3 +117,4 @@ impl Object {
         }
     }
 }
+ */

@@ -108,8 +108,8 @@ pub enum Vertical {
 //pub use object::{Object, ObjectKind};
 //pub use play::{Entrance, Play};
 
-//mod object;
-//mod room;
+mod object;
+mod room;
 //mod house;
 
 // mod play;
