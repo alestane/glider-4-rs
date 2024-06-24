@@ -24,6 +24,12 @@ mod binary {
             .as_chunks::<PITCH>().0[0..SIZE].try_into().unwrap()
     }
     
+    #[repr(C)]
+    union ByteConversion<T> where T: Copy, [u8; size_of::<T>()]:{
+        value: T,
+        data: [u8; size_of::<T>()],
+    }
+
     #[disclose(super)]
     #[derive(Debug, Clone, Copy)]
     #[repr(C)]
@@ -47,6 +53,10 @@ mod binary {
         }
     }
     
+    impl From<[u8; size_of::<Object>()]> for Object {
+        fn from(data: [u8; size_of::<Object>()]) -> Self { unsafe { ByteConversion{data}.value } }
+    }
+
     impl FromIterator<u8> for Object {
         fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
             let mut iter = iter.into_iter();
@@ -61,7 +71,9 @@ mod binary {
         }
     }
 
+    #[disclose(super)]
     #[repr(C)]
+    #[derive(Debug, Clone, Copy)]
     pub(super) struct RoomHeader {
         name: [u8; 26], 
         object_count: [u8; 2],
@@ -72,6 +84,10 @@ mod binary {
         animate_number: [u8; 2], 
         animate_delay: [u8; 4], 
         condition_code: [u8; 2], 
+    }
+
+    impl From<[u8; size_of::<RoomHeader>()]> for RoomHeader {
+        fn from(data: [u8; size_of::<RoomHeader>()]) -> Self { unsafe { ByteConversion{data}.value } }
     }
 
     impl FromIterator<u8> for RoomHeader {
@@ -92,9 +108,15 @@ mod binary {
     } 
 
     #[repr(C)]
+    #[disclose(super)]
+    #[derive(Debug, Clone, Copy)]
     pub(super) struct Room {
         header: RoomHeader,
         objects: [Object; 16],
+    }
+
+    impl From<[u8; size_of::<Room>()]> for Room {
+        fn from(data: [u8; size_of::<Room>()]) -> Self { unsafe { ByteConversion{data}.value } }
     }
 
     impl FromIterator<u8> for Room {
@@ -108,6 +130,8 @@ mod binary {
     }
 
     #[repr(C)]
+    #[disclose(super)]
+    #[derive(Debug, Clone, Copy)]
     pub(super) struct HouseHeader {
         version: [u8; 2],
 		n_rooms: [u8; 2],
@@ -119,6 +143,10 @@ mod binary {
         pict_name: [u8; 34],
         next_file: [u8; 34],
         first_file: [u8; 34],
+    }
+
+    impl From<[u8; size_of::<HouseHeader>()]> for HouseHeader {
+        fn from(data: [u8; size_of::<HouseHeader>()]) -> Self { unsafe { ByteConversion{data}.value } }
     }
 
     impl FromIterator<u8> for HouseHeader {
@@ -140,9 +168,15 @@ mod binary {
     }     
 
     #[repr(C)]
+    #[disclose(super)]
+    #[derive(Debug, Clone, Copy)]
     pub(super) struct House {
         header: HouseHeader,
         rooms: [Room; 40],
+    }
+
+    impl From<[u8; size_of::<House>()]> for House {
+        fn from(data: [u8; size_of::<House>()]) -> Self { unsafe { ByteConversion{data}.value } }
     }
 
     impl FromIterator<u8> for House {
@@ -441,6 +475,14 @@ mod test {
     }
 
     #[test]
+    fn validate_room_passthrough() {
+        let room = DATA_A[size_of::<binary::HouseHeader>()..][..size_of::<binary::Room>()].as_chunks().0[0];
+        let test = binary::Room::from(room);
+        let target = &test as *const _ as *const [u8; size_of::<binary::Room>()];
+        assert!((&unsafe{*target}) == &room);
+    }
+
+    #[test]
     fn validate_house_binary() {
         let test = binary::House::from_iter(DATA_A.into_iter().copied());
         let target = &test as *const _ as *const [u8; size_of::<binary::House>()];
@@ -454,5 +496,13 @@ mod test {
             let target = &test as *const _ as *const [u8; size_of::<binary::House>()];
             assert!((&unsafe{*target}) == house_data);   
         }
+    }
+
+    #[test]
+    fn validate_house_passthrough() {
+        let house = DATA_A.as_chunks().0[0];
+        let test = binary::House::from(house);
+        let target = &test as *const _ as *const [u8; size_of::<binary::House>()];
+        assert!((&unsafe{*target}) == &house);
     }
 }
