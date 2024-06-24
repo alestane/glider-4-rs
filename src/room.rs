@@ -55,8 +55,9 @@ impl From<ObjectKind> for Option<Enemy> {
     }
 } */
 
+#[disclose]
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct On {
+pub(crate) struct On {
     air: bool,
     lights: bool,
 }
