@@ -113,7 +113,7 @@ pub enum Vertical {
 
 mod object;
 mod room;
-//mod house;
+mod house;
 
 // mod play;
 
