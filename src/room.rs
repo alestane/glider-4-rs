@@ -28,7 +28,7 @@ impl From<self::Id> for usize {
 impl From<self::Id> for Option<u16> {
     fn from(value: Id) -> Self { Some(value.0.get()) }
 }
-/* 
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Enemy {
     Dart,
@@ -41,6 +41,7 @@ pub enum Enemy {
     Shock,
 }
 
+/* 
 impl From<ObjectKind> for Option<Enemy> {
     fn from(value: ObjectKind) -> Self {
         Some(match value {
@@ -52,13 +53,12 @@ impl From<ObjectKind> for Option<Enemy> {
             _ => return None
         })
     }
-}
+} */
 
-#[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Deactivated {
-    Air = 1,
-    Lights = 2,
+struct On {
+    air: bool,
+    lights: bool,
 }
 
 #[disclose]
@@ -66,14 +66,15 @@ pub enum Deactivated {
 pub struct Room {
     name: String,
     back_pict_id: u16,
-    tile_order: [u16; 8],
-    left_open: Option<RoomId>,
-    right_open: Option<RoomId>,
+    tile_order: [u8; 8],
+    left_open: Option<Id>,
+    right_open: Option<Id>,
     animate: Option<(Enemy, NonZero<u16>, u32)>,
-    condition_code: Option<Deactivated>,
+    environs: On,
     objects: Vec<Object>,
 }
 
+/*
 impl TryFrom<(u16, &[u8])> for Room {
     type Error = ();
     fn try_from(data: (u16, &[u8])) -> Result<Self, Self::Error> {
