@@ -1,7 +1,7 @@
 use std::{fmt::Display, num::NonZero};
 
 use super::{*,
-//    room::Room, 
+    room::Room, 
     object::Object, 
     // house::*
 };
@@ -336,6 +336,43 @@ impl<T> From<InvalidRoomError> for Result<T, InvalidRoomError> {
     fn from(value: InvalidRoomError) -> Self { Err(value) }
 }
 
+struct EnemyCode(u16);
+
+impl From<EnemyCode> for Option<room::Enemy> {
+    fn from(value: EnemyCode) -> Self {
+        type Use = room::Enemy;
+        Some(match value.0 {
+            0 => Use::Dart,
+            1 => Use::Copter,
+            2 => Use::Balloon,
+            _ => return None,
+        })
+    }
+}
+
+impl TryFrom<(NonZero<u16>, binary::Room)> for Room {
+    type Error = InvalidRoomError;
+    fn try_from((id, value): (NonZero<u16>, binary::Room)) -> Result<Self, Self::Error> {
+        use room::On;
+        let header = &value.header;
+        let _n_objects@0..=16 = u16::from_be_bytes(header.object_count) else {
+            return InvalidRoomError::Fail.into()
+        };
+        Ok(Self {
+            name: string_from_pascal(&header.name),
+            back_pict_id: u16::from_be_bytes(header.back_pict_id),
+            tile_order: header.tile_order.map(|[_, n]| n),
+            left_open: NonZero::new(header.left_right_open[0]).and_then(|_| Some(room::Id(NonZero::new(id.get() - 1)?))),
+            right_open: (header.left_right_open[1] != 0).then_some((id.get() + 1).into()),
+            animate: NonZero::new(u16::from_be_bytes(header.animate_number))
+                .zip(EnemyCode(u16::from_be_bytes(header.animate_kind)).into())
+                .map(|(n, kind)| (kind, n, u32::from_be_bytes(header.animate_delay))),
+            environs: On {air: header.condition_code[1] != 1, lights: header.condition_code[1] != 2},
+            objects: value.objects.into_iter().filter_map(|o| o.try_into().ok()).collect(),
+        })
+    }
+}
+
 pub enum BadRectError{
     Empty{width: Option<NonZero<u16>>, height: Option<NonZero<u16>>},
     Inverted,
@@ -382,16 +419,7 @@ impl From<ObjectData> for Option<Object> {
     }
 } */
 
-/* impl TryFrom<u16> for Deactivated {
-    type Error = ();
-    fn try_from(value: u16) -> Result<Self, Self::Error> {
-        Ok(match value {
-            1 => Self::Air,
-            2 => Self::Lights,
-            _ => return Err(())
-        })
-    }
-}
+/* 
 
 impl TryFrom<u16> for Enemy {
     type Error = ();
