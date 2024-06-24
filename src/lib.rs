@@ -1,4 +1,4 @@
-#![feature(iter_next_chunk, slice_as_chunks, const_trait_impl, effects, generic_const_exprs)]
+#![feature(iter_next_chunk, slice_as_chunks, const_trait_impl, effects, generic_arg_infer, generic_const_exprs)]
 
 #[macro_use]
 extern crate disclose;
