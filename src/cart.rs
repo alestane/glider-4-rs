@@ -240,6 +240,8 @@ impl Rect<u16> {
     pub const fn width (&self) -> NonZero<u16> { self.width_ }
     pub const fn height(&self) -> NonZero<u16> { self.height_ }
 
+    pub const fn size(&self) -> Size { Size{width_: self.width_, height_: self.height_} }
+
     pub const fn x(&self) -> u16 { self.left_ + self.width_.get() / 2 }
     pub const fn y(&self) -> u16 { self.top_ + self.height_.get() / 2 }
 
