@@ -1,20 +1,18 @@
 use std::{fmt::Display, num::NonZero};
 
-use cart::{Rise, Span};
-
-use super::{*, 
-    // room::*, 
+use super::{*,
+//    room::Room, 
     object::Object, 
     // house::*
 };
 
-/* fn string_from_pascal(bytes: &[u8]) -> String {
+fn string_from_pascal(bytes: &[u8]) -> String {
     String::from_utf8_lossy(match bytes {
         [len, chars@..] if *len as usize <= chars.len() => &chars[..*len as usize],
         [_, chars@..] => chars,
         _ => return String::new()
     }).to_string()
-} */
+}
 
 type Block<T> = [u8; size_of::<T>()];
 
@@ -328,6 +326,14 @@ impl TryFrom<binary::Object> for Object {
         
     }
 
+}
+
+pub enum InvalidRoomError {
+    Fail,
+}
+
+impl<T> From<InvalidRoomError> for Result<T, InvalidRoomError> {
+    fn from(value: InvalidRoomError) -> Self { Err(value) }
 }
 
 pub enum BadRectError{
