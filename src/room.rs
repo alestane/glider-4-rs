@@ -29,6 +29,11 @@ impl From<self::Id> for Option<u16> {
     fn from(value: Id) -> Self { Some(value.0.get()) }
 }
 
+impl Id {
+    pub fn prev(&self) -> Option<Id> { Some(Id(NonZero::new(self.0.get() - 1)?)) }
+    pub fn next(&self) -> Option<Id> { Some(Id(self.0.checked_add(1)?)) }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Enemy {
     Dart,
