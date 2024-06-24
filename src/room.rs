@@ -20,14 +20,14 @@ impl From<u16> for self::Id {
 impl From<usize> for self::Id {
 	fn from(value: usize) -> Self { unsafe { Self( NonZero::new_unchecked((value + 1) as u16) ) } }
 }
-/*
+
 impl From<self::Id> for usize {
 	fn from(value: Id) -> Self { value.0.get() as usize - 1 }
 }
 
 impl From<self::Id> for Option<u16> {
     fn from(value: Id) -> Self { Some(value.0.get()) }
-}*/
+}
 /* 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Enemy {
