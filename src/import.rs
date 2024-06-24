@@ -14,6 +14,29 @@ fn string_from_pascal(bytes: &[u8]) -> String {
     }).to_string()
 }
 
+pub enum BadRectError{
+    Empty{width: Option<NonZero<u16>>, height: Option<NonZero<u16>>},
+    Inverted,
+}
+
+impl TryFrom<[u16; 4]> for Bounds {
+    type Error = BadRectError;
+    fn try_from(data: [u16; 4]) -> Result<Self, Self::Error> {
+        let (true, true) = (data[3] > data[1], data[2] > data[0]) else { return Err(BadRectError::Inverted)};
+        match (NonZero::new(data[3] - data[1]), NonZero::new(data[2] - data[0])) {
+            (Some(..), Some(..)) => Ok(unsafe{ Rect::new_unchecked(data[1], data[0], data[3], data[2])}),
+            (width, height) => Err(BadRectError::Empty{width, height}),
+        }
+    }
+}
+
+impl TryFrom<[[u8; 2]; 4]> for Bounds {
+    type Error = <Bounds as TryFrom<[u16;4]>>::Error;
+    fn try_from(value: [[u8; 2]; 4]) -> Result<Self, Self::Error> {
+        value.map(u16::from_be_bytes).try_into()
+    }
+}
+
 type Block<T> = [u8; size_of::<T>()];
 
 mod binary {
@@ -373,87 +396,7 @@ impl TryFrom<(NonZero<u16>, binary::Room)> for Room {
     }
 }
 
-pub enum BadRectError{
-    Empty{width: Option<NonZero<u16>>, height: Option<NonZero<u16>>},
-    Inverted,
-}
 
-impl TryFrom<[u16; 4]> for Bounds {
-    type Error = BadRectError;
-    fn try_from(data: [u16; 4]) -> Result<Self, Self::Error> {
-        let (true, true) = (data[3] > data[1], data[2] > data[0]) else { return Err(BadRectError::Inverted)};
-        match (NonZero::new(data[3] - data[1]), NonZero::new(data[2] - data[0])) {
-            (Some(..), Some(..)) => Ok(unsafe{ Rect::new_unchecked(data[1], data[0], data[3], data[2])}),
-            (width, height) => Err(BadRectError::Empty{width, height}),
-        }
-    }
-}
-
-impl TryFrom<[[u8; 2]; 4]> for Bounds {
-    type Error = <Bounds as TryFrom<[u16;4]>>::Error;
-    fn try_from(value: [[u8; 2]; 4]) -> Result<Self, Self::Error> {
-        value.map(u16::from_be_bytes).try_into()
-    }
-}
-/*
-impl From<ObjectData> for Option<Object> {
-    fn from(value: ObjectData) -> Self {
-        let bounds: Rect<u16> = value.bounds.map(|mem| u16::from_be_bytes(mem)).into();
-        ObjectKind::try_from_raw(u16::from_be_bytes(value.object_is), u16::from_be_bytes(value.amount), u16::from_be_bytes(value.extra))
-        .ok().map(|kind|
-            Object {
-                object_is: kind,
-                position: match kind {
-                    ObjectKind::FloorVent { .. } => Point::new(bounds.x(), bounds.top()),
-                    ObjectKind::CeilingVent { .. } | 
-                    ObjectKind::CeilingVent { .. } |
-                    ObjectKind::Basket |
-                    ObjectKind::Battery(..) 
-                        => Point::new(bounds.x(), bounds.bottom()),
-                    ObjectKind::
-//                    _ => Rect::<u16>::from(value.bounds.map(|mem| u16::from_be_bytes(mem))).center()
-                },
-                starts_on: value.is_on[0] != 0,
-            }
-        )
-    }
-} */
-
-/* 
-
-impl TryFrom<u16> for Enemy {
-    type Error = ();
-    fn try_from(value: u16) -> Result<Self, Self::Error> {
-        Ok(match value {
-            0 => Self::Dart,
-            1 => Self::Copter,
-            2 => Self::Balloon,
-            _ => return Err(())
-        })
-    }
-}
-
-impl From<(u16, RoomData)> for Room {
-    fn from((id, value): (u16, RoomData)) -> Self {
-        let n_objects = u16::from_be_bytes(value.object_count) as usize;
-        let animate = NonZero::new(u16::from_be_bytes(value.animate_number)).zip(Enemy::try_from(u16::from_be_bytes(value.animate_kind)).ok())
-        	.map(|(count, kind)| (kind, count, u32::from_be_bytes(value.animate_delay) / 2));
-        Self {
-            name: string_from_pascal(&value.name),
-            back_pict_id: u16::from_be_bytes(value.back_pict_id),
-            tile_order: value.tile_order.into_iter().map(|pair| u16::from_be_bytes(pair)).next_chunk().unwrap(),
-            left_open: (value.left_right_open[0] != 0).then_some((id - 1).into()),
-            right_open: (value.left_right_open[1] != 0).then_some((id + 1).into()),
-            animate,
-            condition_code: Deactivated::try_from(u16::from_be_bytes(value.condition_code)).ok(),
-            objects: Vec::from_iter(
-                value.objects[..n_objects]
-                .iter()
-                .map_while(|&o| o.into() )
-            ),
-        }
-    }
-} */
 
 /* impl From<HouseData> for House {
     fn from(value: HouseData) -> Self {
