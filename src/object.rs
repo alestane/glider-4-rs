@@ -1,4 +1,4 @@
-use super::*;
+use super::{*, cart::{Rise, Span}};
 use std::num::NonZero;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -61,7 +61,7 @@ pub enum Kind {
     Toaster{range: u16, delay: u16},
     Ball{range: u16},
     Fishbowl{range: u16, delay: u16},
-    Teakettle{range: u16},
+    Teakettle{delay: u16},
     Window(Size, bool),
 
     Painting,
@@ -71,6 +71,32 @@ pub enum Kind {
     Stair(Vertical, room::Id),
 
     Wall(Side),
+}
+
+impl Kind {
+    pub(super) const fn anchor(&self) -> (Span, Rise) {
+        type Is = Kind;
+        match self {
+            Is::Table{..} | Is::Shelf {..} |
+            Is::Drip{..} |
+            Is::FloorVent{..}
+                => (Span::Center, Rise::Top),
+            Is::Exit{..} |
+            Is::Painting{..} | Is::Mirror(..) | Is::Window(..) |
+            Is::Bonus(..) |
+            Is::Switch(..) | Is::Thermostat |
+            Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..)
+                => (Span::Center, Rise::Center),
+            Is::Stair(..) |
+            Is::CeilingVent{..} | Is::CeilingDuct{..} | Is::Fan{..} | Is::Candle{..} |
+            Is::Grease{..} |
+            Is::RubberBands(..) | Is::Clock(..) | Is::Paper(..) | Is::Battery(..) |
+            Is::Guitar |
+            Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | Is::Ball{..} |
+            Is::Books | Is::Basket | Is::Macintosh | Is::Wall(..) 
+                => (Span::Center, Rise::Bottom),
+        }
+    }
 }
 
 #[disclose]
