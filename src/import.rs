@@ -16,6 +16,8 @@ use super::{*,
     }).to_string()
 } */
 
+type Block<T> = [u8; size_of::<T>()];
+
 mod binary {
     fn take_partition<I: IntoIterator, const PITCH: usize, const SIZE: usize>(i: I) -> [[I::Item; PITCH]; SIZE] where I::Item: core::fmt::Debug + Copy, [(); PITCH * SIZE]: {
         let contents = i.into_iter()
@@ -24,6 +26,8 @@ mod binary {
             .as_chunks::<PITCH>().0[0..SIZE].try_into().unwrap()
     }
     
+    use super::Block;
+
     #[repr(C)]
     #[disclose(super)]
     #[derive(Debug, Clone, Copy)]
@@ -34,27 +38,26 @@ mod binary {
         extra: [u8; 2], // 2 // 14
         is_on: [u8; 2], // 1 // 16
     }
-    
+
     impl Default for Object {
-        fn default() -> Self {
-            Self {
-                object_is: [0;2],
-                bounds: [[0;2];4],
-                amount: [0;2],
-                extra: [0;2],
-                is_on: [0;2],
-            }
-        }
+        fn default() -> Self { Self::from([0;_]) }
     }
-    
-    impl AsRef<Object> for [u8; size_of::<Object>()] {
-        fn as_ref(&self) -> &Object {
+
+    impl AsRef<Object> for Block<Object> {
+        fn as_ref<'a>(&'a self) -> &'a Object {
             unsafe { (self as *const _ as *const Object).as_ref().unwrap_unchecked() }
         }
     }
 
-    impl From<[u8; size_of::<Object>()]> for Object {
-        fn from(value: [u8; size_of::<Object>()]) -> Self { *value.as_ref() }
+    impl From<Block<Object>> for Object {
+        fn from(value: Block<Object>) -> Self { *value.as_ref() }
+    }
+
+    impl<'a> TryFrom<&'a [u8]> for &'a Object {
+        type Error = std::array::TryFromSliceError;
+        fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+            Ok(<&Block<Object>>::try_from(value)?.as_ref())
+        }
     }
 
     impl FromIterator<u8> for Object {
@@ -86,14 +89,21 @@ mod binary {
         condition_code: [u8; 2], 
     }
 
-    impl AsRef<RoomHeader> for [u8; size_of::<RoomHeader>()] {
+    impl AsRef<RoomHeader> for Block<RoomHeader> {
         fn as_ref(&self) -> &RoomHeader { 
             unsafe { (self as *const _ as *const RoomHeader).as_ref().unwrap_unchecked() }
          }
     }
 
-    impl From<[u8; size_of::<RoomHeader>()]> for RoomHeader {
-        fn from(value: [u8; size_of::<RoomHeader>()]) -> Self { *value.as_ref() }
+    impl From<Block<RoomHeader>> for RoomHeader {
+        fn from(value: Block<RoomHeader>) -> Self { *value.as_ref() }
+    }
+
+    impl<'a> TryFrom<&'a [u8]> for &'a RoomHeader {
+        type Error = std::array::TryFromSliceError;
+        fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+            Ok(<&Block<RoomHeader>>::try_from(value)?.as_ref())
+        }
     }
 
     impl FromIterator<u8> for RoomHeader {
@@ -121,14 +131,21 @@ mod binary {
         objects: [Object; 16],
     }
 
-    impl AsRef<Room> for [u8; size_of::<Room>()] {
+    impl AsRef<Room> for Block<Room> {
         fn as_ref(&self) -> &Room { 
             unsafe { (self as *const _ as *const Room).as_ref().unwrap_unchecked() }
          }
     }
 
-    impl From<[u8; size_of::<Room>()]> for Room {
-        fn from(value: [u8; size_of::<Room>()]) -> Self { *value.as_ref() }
+    impl From<Block<Room>> for Room {
+        fn from(value: Block<Room>) -> Self { *value.as_ref() }
+    }
+
+    impl<'a> TryFrom<&'a [u8]> for &'a Room {
+        type Error = std::array::TryFromSliceError;
+        fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+            Ok(<&Block<Room>>::try_from(value)?.as_ref())
+        }
     }
 
     impl FromIterator<u8> for Room {
@@ -157,14 +174,21 @@ mod binary {
         first_file: [u8; 34],
     }
 
-    impl AsRef<HouseHeader> for [u8; size_of::<HouseHeader>()] {
+    impl AsRef<HouseHeader> for Block<HouseHeader> {
         fn as_ref(&self) -> &HouseHeader { 
             unsafe { (self as *const _ as *const HouseHeader).as_ref().unwrap_unchecked() }
          }
     }
 
-    impl From<[u8; size_of::<HouseHeader>()]> for HouseHeader {
-        fn from(value: [u8; size_of::<HouseHeader>()]) -> Self { *value.as_ref() }
+    impl From<Block<HouseHeader>> for HouseHeader {
+        fn from(value: Block<HouseHeader>) -> Self { *value.as_ref() }
+    }
+
+    impl<'a> TryFrom<&'a [u8]> for &'a HouseHeader {
+        type Error = std::array::TryFromSliceError;
+        fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+            Ok(<&Block<HouseHeader>>::try_from(value)?.as_ref())
+        }
     }
 
     impl FromIterator<u8> for HouseHeader {
@@ -193,14 +217,21 @@ mod binary {
         rooms: [Room; 40],
     }
 
-    impl AsRef<House> for [u8; size_of::<House>()] {
+    impl AsRef<House> for Block<House> {
         fn as_ref(&self) -> &House { 
             unsafe { (self as *const _ as *const House).as_ref().unwrap_unchecked() }
          }
     }
 
-    impl From<[u8; size_of::<House>()]> for House {
-        fn from(value: [u8; size_of::<House>()]) -> Self { *value.as_ref() }
+    impl From<Block<House>> for House {
+        fn from(value: Block<House>) -> Self { *value.as_ref() }
+    }
+
+    impl<'a> TryFrom<&'a [u8]> for &'a House {
+        type Error = std::array::TryFromSliceError;
+        fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+            Ok(<&Block<House>>::try_from(value)?.as_ref())
+        }
     }
 
     impl FromIterator<u8> for House {
@@ -425,7 +456,7 @@ mod test {
     const DATA_A: &[u8] = include_bytes!("resources/The House");
     const DATA_B: &[u8] = include_bytes!("resources/The House 2");
     
-    fn objects() -> impl Iterator<Item = &'static [u8; size_of::<binary::Object>()]> {
+    fn objects() -> impl Iterator<Item = &'static Block<binary::Object>> {
         [DATA_A, DATA_B].map(|data| data[size_of::<binary::HouseHeader>()..]
             .as_chunks::<{size_of::<binary::Room>()}>().0
             .into_iter()
@@ -442,7 +473,7 @@ mod test {
             .into_iter()
     }
 
-    fn rooms() -> impl Iterator<Item = &'static [u8; size_of::<binary::Room>()]> {
+    fn rooms() -> impl Iterator<Item = &'static Block<binary::Room>> {
         [DATA_A, DATA_B].map(|data| 
             data[size_of::<binary::HouseHeader>()..].as_chunks::<{size_of::<binary::Room>()}>().0
         )
@@ -492,7 +523,7 @@ mod test {
     #[test]
     fn validate_room_binary() {
         let test = binary::Room::from_iter((&DATA_A[size_of::<binary::HouseHeader>()..][..size_of::<binary::Room>()]).into_iter().copied());
-        let target = &test as *const _ as *const [u8; size_of::<binary::Room>()];
+        let target = &test as *const _ as *const Block<binary::Room>;
         assert!((&unsafe{*target}) == (&DATA_A[size_of::<binary::HouseHeader>()..][..size_of::<binary::Room>()]));
     }
 
@@ -500,7 +531,7 @@ mod test {
     fn validate_room_binaries() {
         for room_data in rooms() {
             let test = binary::Room::from_iter(room_data.into_iter().copied());
-            let target = &test as *const _ as *const [u8; size_of::<binary::Room>()];
+            let target = &test as *const _ as *const Block<binary::Room>;
             assert!(&unsafe{*target} == room_data);
         }
     }
@@ -509,14 +540,14 @@ mod test {
     fn validate_room_passthrough() {
         let room = DATA_A[size_of::<binary::HouseHeader>()..][..size_of::<binary::Room>()].as_chunks().0[0];
         let test = binary::Room::from(room);
-        let target = &test as *const _ as *const [u8; size_of::<binary::Room>()];
+        let target = &test as *const _ as *const Block<binary::Room>;
         assert!((&unsafe{*target}) == &room);
     }
 
     #[test]
     fn validate_house_binary() {
         let test = binary::House::from_iter(DATA_A.into_iter().copied());
-        let target = &test as *const _ as *const [u8; size_of::<binary::House>()];
+        let target = &test as *const _ as *const Block<binary::House>;
         assert!((&unsafe{*target}) == DATA_A);   
     }
 
@@ -524,7 +555,7 @@ mod test {
     fn validate_house_binaries() {
         for house_data in [DATA_A, DATA_B] {
             let test = binary::House::from_iter(house_data.into_iter().copied());
-            let target = &test as *const _ as *const [u8; size_of::<binary::House>()];
+            let target = &test as *const _ as *const Block<binary::House>;
             assert!((&unsafe{*target}) == house_data);   
         }
     }
@@ -533,7 +564,7 @@ mod test {
     fn validate_house_passthrough() {
         let house = DATA_A.as_chunks().0[0];
         let test = binary::House::from(house);
-        let target = &test as *const _ as *const [u8; size_of::<binary::House>()];
+        let target = &test as *const _ as *const Block<binary::House>;
         assert!((&unsafe{*target}) == &house);
     }
 }
