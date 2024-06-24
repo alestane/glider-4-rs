@@ -1,5 +1,7 @@
 use std::{fmt::Display, num::NonZero};
 
+use cart::{Rise, Span};
+
 use super::{*, 
     // room::*, 
     object::Object, 
@@ -24,6 +26,7 @@ mod binary {
     
     #[disclose(super)]
     #[derive(Debug, Clone, Copy)]
+    #[repr(C)]
     pub(super) struct Object {
         object_is: [u8; 2], // 2
         bounds: [[u8; 2]; 4], // 8 // 10
@@ -57,6 +60,44 @@ mod binary {
             }
         }
     }
+    #[repr(C)]
+    pub(super) struct RoomHeader {
+        room_name: [u8; 26],
+        n_objects: [u8; 2],
+        back_pict_id: [u8; 2],
+        tile_order: [[u8; 2]; 8],
+        left_open: u8, right_open: u8,
+        animate_kind: [u8; 2],
+        animate_number: [u8; 2],
+        animate_delay: [u8; 4],
+        condition_code: [u8; 2],
+    }
+
+    #[repr(C)]
+    pub(super) struct Room {
+        header: RoomHeader,
+        objects: [Object; 16],
+    }
+
+    #[repr(C)]
+    pub(super) struct HouseHeader {
+        version: [u8; 2],
+		n_rooms: [u8; 2],
+		timestamp: [u8;4],
+        hi_scores: [[u8; 4]; 20],
+        hi_level: [[u8; 2]; 20],
+        hi_name: [[u8; 26]; 20],
+        hi_room: [[u8; 26]; 20],
+        pict_file: [u8; 34],
+        next_file: [u8; 34],
+        first_file: [u8; 34],
+    }
+
+    #[repr(C)]
+    pub(super) struct House {
+        header: HouseHeader,
+        rooms: [Room; 40],
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -64,6 +105,7 @@ enum BadObjectError {
     FaultyDimensions(u16, u16, u16, u16),
     OutOfRoom(Bounds),
     UnknownKind(u16),
+    NullObject,
 }
 
 impl Display for BadObjectError {
@@ -72,7 +114,7 @@ impl Display for BadObjectError {
             Self::FaultyDimensions(l, t, r, b) => write!(f, "object bounding rectangle ({l}, {t}, {r}, {b}) is invalid"),
             Self::OutOfRoom(b) => write!(f, "object bounding rectangle {b:?} extends outside of room"),
             Self::UnknownKind(kind_id) => write!(f, "object declarator \"{kind_id}\" does not indicate a recognized object kind"),
-
+            Self::NullObject => write!(f, "empty object description")
         }
     }
 }
@@ -82,61 +124,63 @@ impl std::error::Error for BadObjectError {}
 impl TryFrom<binary::Object> for Object {
     type Error = BadObjectError;
     fn try_from(value: binary::Object) -> Result<Self, Self::Error> {
+        if value.object_is == [0; 2] { return Err(BadObjectError::NullObject) }
         let Ok(bounds): Result<Bounds, _> = value.bounds.try_into() else { 
             let [top, left, bottom, right] = value.bounds.map(u16::from_be_bytes);
             return Err(BadObjectError::FaultyDimensions(left, top, right, bottom))
         };
         if bounds.right() > room::SCREEN_WIDTH || bounds.bottom() > room::SCREEN_HEIGHT { return Err(BadObjectError::OutOfRoom(bounds)) };
+        let (amount, extra, ready) = (u16::from_be_bytes(value.amount), u16::from_be_bytes(value.extra), u16::from_be_bytes(value.is_on) != 0);
         use object::Kind;
-//        let bounds: Bounds = value.bounds.into();
-/*        Ok(match kind {
-             0 => return Err(None),
+        let kind = match u16::from_be_bytes(value.object_is) {
+             0 => return Err(BadObjectError::NullObject),
+             1 => Kind::Table{width: bounds.width(), height: bounds.height()}, 
+             
+             2 => Kind::Shelf{width: bounds.width(), height: bounds.height()},
+             3 => Kind::Books, 
+             4 => Kind::Cabinet(bounds.size()),
+             5 => Kind::Exit{to: Some(amount.into())},
+             6 => Kind::Obstacle(bounds.size()),
 
-             1 => Table,
-             2 => Shelf,
-             3 => Books,
-             4 => Cabinet,
-             5 => Exit{to: amount.into()},
-             6 => Obstacle,
+             8 => Kind::FloorVent{height:bounds.top() - amount},
+             9 => Kind::CeilingVent{height: amount - bounds.bottom()},
+            10 => Kind::CeilingDuct{height: amount - bounds.bottom(), destination: Some(extra.into()), ready},
+            11 => Kind::Candle{height: bounds.top() - amount},
+            12 => Kind::Fan{faces: Side::Left, range: bounds.left() - amount, ready},
+            13 => Kind::Fan{faces: Side::Right, range: amount - bounds.right(), ready},
 
-             8 => FloorVent{height:amount},
-             9 => CeilingVent{height: amount},
-            10 => CeilingDuct{height: amount, destination: Some(extra.into())},
-            11 => Candle{height: amount},
-            12 => Fan{faces: Side::Left, range: amount},
-            13 => Fan{faces: Side::Right, range: amount},
+            16 => Kind::Clock(amount),
+            17 => Kind::Paper(amount),
+            18 => Kind::Grease{range: amount - bounds.right(), ready},
+            19 => Kind::Bonus(amount, bounds.size()),
+            20 => Kind::Battery(amount),
+            21 => Kind::RubberBands(amount),
 
-            16 => Clock(amount),
-            17 => Paper(amount),
-            18 => Grease{range: amount},
-            19 => Bonus(amount),
-            20 => Battery(amount),
-            21 => RubberBands(amount),
+            24 => Kind::Switch(None),
+            25 => Kind::Outlet{delay: amount, ready},
+            26 => Kind::Thermostat,
+            27 => Kind::Shredder{ready},
+            28 => Kind::Switch(Some(amount.into())),
+            29 => Kind::Guitar,
 
-            24 => Switch(None),
-            25 => Outlet{delay: amount.into()},
-            26 => Thermostat,
-            27 => Shredder,
-            28 => Switch(Some(amount.into())),
-            29 => Guitar,
+            32 => Kind::Drip{range: amount - bounds.top()},
+            33 => Kind::Toaster{range: bounds.top() - amount, delay: extra},
+            34 => Kind::Ball{range: bounds.bottom() - amount},
+            35 => Kind::Fishbowl{range: bounds.y() - amount, delay: extra},
+            36 => Kind::Teakettle{delay: amount},
+            37 => Kind::Window(bounds.size(), ready),
 
-            32 => Drip{range: amount},
-            33 => Toaster{range: amount, delay: extra},
-            34 => Ball{range: amount},
-            35 => Fishbowl{range: amount, delay: extra},
-            36 => Teakettle{range: amount},
-            37 => Window,
+            40 => Kind::Painting, 
+            41 => Kind::Mirror(bounds.size()),
+            42 => Kind::Basket,
+            43 => Kind::Macintosh,
+            44 => Kind::Stair(Vertical::Up, amount.into()),
+            45 => Kind::Stair(Vertical::Down, amount.into()),
 
-            40 => Painting,
-            41 => Mirror,
-            42 => Basket,
-            43 => Macintosh,
-            44 => Stair(Vertical::Up, amount.into()),
-            45 => Stair(Vertical::Down, amount.into()),
-
-            _ => return Err(Some( () ) )
-        })*/
-        Ok(Self{kind: Kind::Painting, position: Position::default()})
+            bad => return Err( BadObjectError::UnknownKind(bad) )
+        };
+        Ok(Object{kind, position: bounds * kind.anchor()})
+        
     }
 
 }
@@ -329,3 +373,58 @@ impl FromIterator<u8> for HouseData {
         }
     }
 } */
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    const DATA_A: &[u8] = include_bytes!("resources/The House");
+    const DATA_B: &[u8] = include_bytes!("resources/The House 2");
+    
+    fn objects() -> impl Iterator<Item = &'static [u8; size_of::<binary::Object>()]> {
+        [DATA_A, DATA_B].map(|data| data[size_of::<binary::HouseHeader>()..]
+            .as_chunks::<{size_of::<binary::Room>()}>().0
+            .into_iter()
+            .map(|r| 
+                r[size_of::<binary::RoomHeader>()..]
+                .as_chunks::<{size_of::<binary::Object>()}>()
+                .0
+            )
+            .flatten()
+        )
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
+
+    #[test]
+    fn verify_sizes() {
+        assert_eq!(size_of::<binary::Object>(), 16);
+        assert_eq!(size_of::<binary::RoomHeader>(), 58);
+        assert!(std::mem::align_of::<binary::Room>() <= 2);
+        assert_eq!(size_of::<binary::Room>(), 314);
+        assert!(std::mem::align_of::<binary::HouseHeader>() <= 2);
+        assert_eq!(size_of::<binary::HouseHeader>(), 1270);
+        assert_eq!(size_of::<binary::House>(), 13830);
+    }
+
+    #[test]
+    fn validate_object_bounds() {
+        let mut count = 0usize;
+        for (index, data) in objects().enumerate() {
+            count = index;
+            let data = binary::Object::from_iter(*data);
+            let (room, obj) = (index / 16 + 1, index % 16 + 1);
+            match Object::try_from(data) {
+                Err(err@BadObjectError::FaultyDimensions(..)) | 
+                Err(err@BadObjectError::OutOfRoom(..))
+                    => panic!("object {obj} in room {room} has faulty boundary rectangle :({err})"),
+                Err(err@BadObjectError::UnknownKind(..))
+                    => panic!("object {obj} in room {room} has unknown object discriminant :({err})"),
+                _ => () 
+            }
+        }
+        println!("{count} object bounds verified.");
+    }
+}
