@@ -60,18 +60,36 @@ mod binary {
             }
         }
     }
+
     #[repr(C)]
     pub(super) struct RoomHeader {
-        room_name: [u8; 26],
-        n_objects: [u8; 2],
-        back_pict_id: [u8; 2],
-        tile_order: [[u8; 2]; 8],
-        left_open: u8, right_open: u8,
-        animate_kind: [u8; 2],
-        animate_number: [u8; 2],
-        animate_delay: [u8; 4],
-        condition_code: [u8; 2],
+        name: [u8; 26], 
+        object_count: [u8; 2],
+        back_pict_id: [u8; 2], 
+        tile_order: [[u8; 2]; 8], 
+        left_right_open: [u8; 2], 
+        animate_kind: [u8; 2], 
+        animate_number: [u8; 2], 
+        animate_delay: [u8; 4], 
+        condition_code: [u8; 2], 
     }
+
+    impl FromIterator<u8> for RoomHeader {
+        fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
+            let mut iter = iter.into_iter();
+            Self {
+                name: iter.next_chunk().unwrap(),
+                object_count: iter.next_chunk().unwrap(),
+                back_pict_id: iter.next_chunk().unwrap(),
+                tile_order: take_partition(&mut iter),
+                left_right_open: iter.next_chunk().unwrap(),
+                animate_kind: iter.next_chunk().unwrap(),
+                animate_number: iter.next_chunk().unwrap(),
+                animate_delay: iter.next_chunk().unwrap(),
+                condition_code: iter.next_chunk().unwrap(),
+            }
+        }
+    } 
 
     #[repr(C)]
     pub(super) struct Room {
@@ -79,24 +97,62 @@ mod binary {
         objects: [Object; 16],
     }
 
+    impl FromIterator<u8> for Room {
+        fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
+            let mut source = iter.into_iter();
+            Self {
+                header: RoomHeader::from_iter(&mut source),
+                objects: [0;16].map(|_| Object::from_iter(&mut source)),
+            }
+        }
+    }
+
     #[repr(C)]
     pub(super) struct HouseHeader {
         version: [u8; 2],
 		n_rooms: [u8; 2],
-		timestamp: [u8;4],
+		time_stamp: [u8;4],
         hi_scores: [[u8; 4]; 20],
         hi_level: [[u8; 2]; 20],
-        hi_name: [[u8; 26]; 20],
-        hi_room: [[u8; 26]; 20],
-        pict_file: [u8; 34],
+        hi_names: [[u8; 26]; 20],
+        hi_rooms: [[u8; 26]; 20],
+        pict_name: [u8; 34],
         next_file: [u8; 34],
         first_file: [u8; 34],
     }
+
+    impl FromIterator<u8> for HouseHeader {
+        fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
+            let mut iter = iter.into_iter();
+            Self {
+                version: iter.next_chunk().unwrap(),
+                n_rooms: iter.next_chunk().unwrap(),
+                time_stamp: iter.next_chunk().unwrap(),
+                hi_scores: take_partition(&mut iter),
+                hi_level: take_partition(&mut iter),
+                hi_names: take_partition(&mut iter),
+                hi_rooms: take_partition(&mut iter),
+                pict_name: iter.next_chunk().unwrap(),
+                next_file: iter.next_chunk().unwrap(),
+                first_file: iter.next_chunk().unwrap(),
+            }
+        }
+    }     
 
     #[repr(C)]
     pub(super) struct House {
         header: HouseHeader,
         rooms: [Room; 40],
+    }
+
+    impl FromIterator<u8> for House {
+        fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
+            let mut source = iter.into_iter();
+            Self {
+                header: HouseHeader::from_iter(&mut source),
+                rooms: [0; 40].map(|_| Room::from_iter(&mut source)),
+            }
+        }
     }
 }
 
@@ -304,76 +360,6 @@ impl From<(u16, RoomData)> for Room {
 }
  */
 
-/* #[derive(Debug, Clone, Copy)]
-pub (crate) struct RoomData {
-    name: [u8; 26], // 26
-    object_count: [u8; 2], // 2 // 28
-    back_pict_id: [u8; 2], // 2 // 30
-    tile_order: [[u8; 2]; 8], // 16 // 46
-    left_right_open: [u8; 2], // 1 // 48
-    animate_kind: [u8; 2], // 2 // 50
-    animate_number: [u8; 2], // 2 // 52
-    animate_delay: [u8; 4], // 4 // 56
-    condition_code: [u8; 2], // 2 // 58
-    objects: [ObjectData; 16], // 256 // 314
-}
-
-impl FromIterator<u8> for RoomData {
-    fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
-        let mut iter = iter.into_iter();
-        Self {
-            name: iter.next_chunk().unwrap(),
-            object_count: iter.next_chunk().unwrap(),
-            back_pict_id: iter.next_chunk().unwrap(),
-            tile_order: take_partition(&mut iter),
-            left_right_open: iter.next_chunk().unwrap(),
-            animate_kind: iter.next_chunk().unwrap(),
-            animate_number: iter.next_chunk().unwrap(),
-            animate_delay: iter.next_chunk().unwrap(),
-            condition_code: iter.next_chunk().unwrap(),
-            objects: (0..16).map(|_| iter.next_chunk::<16>().map(|bytes| ObjectData::from_iter(bytes)).unwrap_or_default()).next_chunk().unwrap(),
-        }
-    }
-} */
-
-/* #[derive(Debug, Clone, Copy)]
-pub (crate) struct HouseData {
-    version: [u8; 2], // 2
-    n_rooms: [u8; 2], // 2 // 4
-    time_stamp: [u8; 4], // 4 // 8
-    hi_scores: [[u8; 4]; 20], // 80 // 88
-    hi_level: [[u8; 2]; 20], // 40 // 128
-    hi_names: [[u8; 26]; 20], // 520 // 648
-    hi_rooms: [[u8; 26]; 20], // 520 // 1168
-    pict_name: [u8; 34], // 34 // 1202
-    next_file: [u8; 34], // 34 // 1236
-    first_file: [u8; 34], // 34 // 1270
-    rooms: [RoomData; 40], // 12560 // 13830
-}
-
-impl FromIterator<u8> for HouseData {
-    fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
-        let mut iter = iter.into_iter();
-        Self {
-            version: iter.next_chunk().unwrap(),
-            n_rooms: iter.next_chunk().unwrap(),
-            time_stamp: iter.next_chunk().unwrap(),
-            hi_scores: take_partition(&mut iter),
-            // iter.next_chunk::<80>().unwrap().as_chunks().0[0..20].try_into().unwrap(),
-            hi_level: take_partition(&mut iter),
-            // *iter.next_chunk::<40>().unwrap().as_chunks().0.split_array_ref().0,
-            hi_names: take_partition(&mut iter),
-            // *iter.next_chunk::<520>().unwrap().as_chunks().0.split_array_ref().0,
-            hi_rooms: take_partition(&mut iter),
-            // *iter.next_chunk::<520>().unwrap().as_chunks().0.split_array_ref().0,
-            pict_name: iter.next_chunk().unwrap(),
-            next_file: iter.next_chunk().unwrap(),
-            first_file: iter.next_chunk().unwrap(),
-            rooms: (0..40).map(|_| RoomData::from_iter(&mut iter)).next_chunk().unwrap(),
-        }
-    }
-} */
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -398,6 +384,16 @@ mod test {
             .into_iter()
     }
 
+    fn rooms() -> impl Iterator<Item = &'static [u8; size_of::<binary::Room>()]> {
+        [DATA_A, DATA_B].map(|data| 
+            data[size_of::<binary::HouseHeader>()..].as_chunks::<{size_of::<binary::Room>()}>().0
+        )
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .into_iter()       
+    }
+
     #[test]
     fn verify_sizes() {
         assert_eq!(size_of::<binary::Object>(), 16);
@@ -413,7 +409,7 @@ mod test {
     fn validate_object_bounds() {
         let mut count = 0usize;
         for (index, data) in objects().enumerate() {
-            count = index;
+            count = index + 1;
             let data = binary::Object::from_iter(*data);
             let (room, obj) = (index / 16 + 1, index % 16 + 1);
             match Object::try_from(data) {
@@ -426,5 +422,37 @@ mod test {
             }
         }
         println!("{count} object bounds verified.");
+    }
+
+    #[test]
+    fn validate_room_binary() {
+        let test = binary::Room::from_iter((&DATA_A[size_of::<binary::HouseHeader>()..][..size_of::<binary::Room>()]).into_iter().copied());
+        let target = &test as *const _ as *const [u8; size_of::<binary::Room>()];
+        assert!((&unsafe{*target}) == (&DATA_A[size_of::<binary::HouseHeader>()..][..size_of::<binary::Room>()]));
+    }
+
+    #[test]
+    fn validate_room_binaries() {
+        for room_data in rooms() {
+            let test = binary::Room::from_iter(room_data.into_iter().copied());
+            let target = &test as *const _ as *const [u8; size_of::<binary::Room>()];
+            assert!(&unsafe{*target} == room_data);
+        }
+    }
+
+    #[test]
+    fn validate_house_binary() {
+        let test = binary::House::from_iter(DATA_A.into_iter().copied());
+        let target = &test as *const _ as *const [u8; size_of::<binary::House>()];
+        assert!((&unsafe{*target}) == DATA_A);   
+    }
+
+    #[test]
+    fn validate_house_binaries() {
+        for house_data in [DATA_A, DATA_B] {
+            let test = binary::House::from_iter(house_data.into_iter().copied());
+            let target = &test as *const _ as *const [u8; size_of::<binary::House>()];
+            assert!((&unsafe{*target}) == house_data);   
+        }
     }
 }
