@@ -39,6 +39,10 @@ impl TryFrom<[[u8; 2]; 4]> for Bounds {
 
 type Block<T> = [u8; size_of::<T>()];
 
+pub const ROOM_SIZE: usize = size_of::<binary::Room>();
+pub const OBJECT_SIZE: usize = size_of::<binary::Object>();
+pub const HOUSE_SIZE: usize = size_of::<binary::House>();
+
 mod binary {
     fn take_partition<I: IntoIterator, const PITCH: usize, const SIZE: usize>(i: I) -> [[I::Item; PITCH]; SIZE] where I::Item: core::fmt::Debug + Copy, [(); PITCH * SIZE]: {
         let contents = i.into_iter()
