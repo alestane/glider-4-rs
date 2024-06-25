@@ -1,9 +1,9 @@
-use std::{fmt::Display, num::NonZero};
+use std::{fmt::Display, num::NonZero, time::{Duration, SystemTime}};
 
 use super::{*,
     room::Room, 
     object::Object, 
-    // house::*
+    house::House,
 };
 
 fn string_from_pascal(bytes: &[u8]) -> String {
@@ -373,9 +373,9 @@ impl From<EnemyCode> for Option<room::Enemy> {
     }
 }
 
-impl TryFrom<(NonZero<u16>, binary::Room)> for Room {
+impl TryFrom<(room::Id, binary::Room)> for Room {
     type Error = InvalidRoomError;
-    fn try_from((id, value): (NonZero<u16>, binary::Room)) -> Result<Self, Self::Error> {
+    fn try_from((id, value): (room::Id, binary::Room)) -> Result<Self, Self::Error> {
         use room::On;
         let header = &value.header;
         let _n_objects@0..=16 = u16::from_be_bytes(header.object_count) else {
@@ -385,7 +385,7 @@ impl TryFrom<(NonZero<u16>, binary::Room)> for Room {
             name: string_from_pascal(&header.name),
             back_pict_id: u16::from_be_bytes(header.back_pict_id),
             tile_order: header.tile_order.map(|[_, n]| n),
-            left_open: NonZero::new(header.left_right_open[0]).and_then(|_| Some(room::Id(NonZero::new(id.get() - 1)?))),
+            left_open: NonZero::new(header.left_right_open[0]).and_then(|_| Some(room::Id(NonZero::new(usize::from(id) - 1)?))),
             right_open: (header.left_right_open[1] != 0).then_some((id.get() + 1).into()),
             animate: NonZero::new(u16::from_be_bytes(header.animate_number))
                 .zip(EnemyCode(u16::from_be_bytes(header.animate_kind)).into())
@@ -396,18 +396,17 @@ impl TryFrom<(NonZero<u16>, binary::Room)> for Room {
     }
 }
 
-
-
-/* impl From<HouseData> for House {
-    fn from(value: HouseData) -> Self {
-        let n_rooms = u16::from_be_bytes(value.n_rooms) as usize;
-        Self {
-            version: u16::from_be_bytes(value.version),
-            time_stamp: SystemTime::UNIX_EPOCH + Duration::from_secs(u32::from_be_bytes(value.time_stamp) as u64),
-            hi_scores: Vec::from_iter(
-                value.hi_scores.iter()
-                    .zip(value.hi_level)
-                    .zip(value.hi_names.iter().zip(value.hi_rooms.iter()))
+impl TryFrom<binary::House> for House {
+    type Error = <Room as TryFrom<(NonZero<u16>, binary::Room)>>::Error;
+    fn try_from(value: binary::House) -> Result<Self, Self::Error> {
+        let header = &value.header;
+        let n_rooms@0..=40 = u16::from_be_bytes(header.n_rooms) as usize else { return InvalidRoomError::Fail.into() };
+        Ok(Self {
+            version: u16::from_be_bytes(header.version),
+            time_stamp: SystemTime::UNIX_EPOCH + Duration::from_secs(u32::from_be_bytes(header.time_stamp) as u64),
+            hi_scores: header.hi_scores.iter()
+                .zip(header.hi_level)
+                .zip(header.hi_names.iter().zip(header.hi_rooms.iter()))
                     .map(|((score, level), (name, room))|
                         Success{
                             score: u32::from_be_bytes(*score),
@@ -416,15 +415,17 @@ impl TryFrom<(NonZero<u16>, binary::Room)> for Room {
                             room: string_from_pascal(room),
                         }
                     )
-                ),
-            pict_file: string_from_pascal(&value.pict_name),
-            next_file: string_from_pascal(&value.next_file),
-            first_file: string_from_pascal(&value.first_file),
-            rooms: Vec::from_iter(value.rooms[..n_rooms].iter().enumerate().map(|(i, r)| Room::from((i as u16, *r))))
-        }
+            .collect(),
+            pict_file: string_from_pascal(&header.pict_name),
+            next_file: string_from_pascal(&header.next_file),
+            first_file: string_from_pascal(&header.first_file),
+            rooms: value.rooms[..n_rooms]
+                .iter().enumerate()
+                .map(|(i, r)| Room::try_from((room::Id::from(i), *r))).try_collect()?
+        })
     }
 }
- */
+ 
 
 #[cfg(test)]
 mod test {
