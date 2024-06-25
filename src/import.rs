@@ -363,6 +363,18 @@ impl<T> From<InvalidRoomError> for Result<T, InvalidRoomError> {
     fn from(value: InvalidRoomError) -> Self { Err(value) }
 }
 
+impl From<std::array::TryFromSliceError> for InvalidRoomError {
+    fn from(_value: std::array::TryFromSliceError) -> Self {
+        Self::Fail
+    }
+}
+
+impl From<std::convert::Infallible> for InvalidRoomError {
+    fn from(_: std::convert::Infallible) -> Self {
+        Self::Fail
+    }
+}
+
 struct EnemyCode(u16);
 
 impl From<EnemyCode> for Option<room::Enemy> {
@@ -377,10 +389,11 @@ impl From<EnemyCode> for Option<room::Enemy> {
     }
 }
 
-impl TryFrom<(room::Id, binary::Room)> for Room {
+impl<T: TryInto<binary::Room>> TryFrom<(room::Id, T)> for Room where InvalidRoomError: From<<T as TryInto<binary::Room>>::Error> {
     type Error = InvalidRoomError;
-    fn try_from((id, value): (room::Id, binary::Room)) -> Result<Self, Self::Error> {
+    fn try_from((id, value): (room::Id, T)) -> Result<Self, Self::Error> {
         use room::On;
+        let value = value.try_into()?;
         let header = &value.header;
         let _n_objects@0..=16 = u16::from_be_bytes(header.object_count) else {
             return InvalidRoomError::Fail.into()
@@ -397,6 +410,13 @@ impl TryFrom<(room::Id, binary::Room)> for Room {
             environs: On {air: header.condition_code[1] != 1, lights: header.condition_code[1] != 2},
             objects: value.objects.into_iter().filter_map(|o| o.try_into().ok()).collect(),
         })
+    }
+}
+
+impl<'a> TryFrom<(room::Id, &'a [u8])> for Room {
+    type Error = InvalidRoomError;
+    fn try_from((id, value): (room::Id, &[u8])) -> Result<Self, Self::Error> {
+        Self::try_from((id, *(<&binary::Room>::try_from(value)?)))
     }
 }
 
