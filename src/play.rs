@@ -1,6 +1,6 @@
-use crate::{Environment, ObjectKind, Point, Rect, Update, Vertical};
+use crate::{Environment, Point, Rect, Update, Vertical};
 
-use super::{Input, Outcome, object::ObjectId, room::{self, RoomId, Deactivated, Room, Enemy}, Side, Object};
+use super::{Input, Outcome, object::{Object, Kind}, room::{self, On, Room, Enemy}, Side};
 use std::{collections::{BTreeSet, HashMap}, iter::from_fn, num::NonZero, ops::Range};
 
 
@@ -18,6 +18,28 @@ fn random() -> u16 {
 
 const MAX_THRUST: i16 = 5;
 
+#[derive(Debug, Clone, Copy)]
+pub enum Entrance {
+    Spawn(Side),
+    Flying(Side, u16),
+    Up, 
+    Down,
+	Air,
+}
+
+impl Default for Entrance {
+    fn default() -> Self { Self::Spawn(Side::Left) }
+}
+
+impl Entrance {
+    fn action(&self) -> Option<State> {
+        Some(match self {
+            Self::Spawn(..) => State::FadingIn(0..16),
+            _ => return None
+        })
+    }
+}
+/*
 #[derive(Debug, Clone)]
 struct Hazard {
     kind: Enemy,
@@ -120,22 +142,22 @@ impl Object {
         )
     }
 }
-
+*/
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum State {
-	Escaping(Option<RoomId>),
+	Escaping(Option<room::Id>),
     FadingIn(Range<u8>),
     FadingOut(Range<u8>),
     Turning(Range<u8>),
 //    Shredding(Rect),
     Burning(Range<u16>),
-    Ascending(RoomId, i16),
-   Descending(RoomId, i16),
+    Ascending(room::Id, i16),
+   Descending(room::Id, i16),
 }
 
 const DIE: State = State::FadingOut(0..16);
 const IGNITE: State = State::Burning(0..150);
-
+/*
 impl State {
     fn outcome(&self, score: u32) -> Option<Outcome> {
         Some(match self {
@@ -169,13 +191,13 @@ impl std::iter::Iterator for State {
         }
     }
 }
-
+*/
 #[derive(Debug, Clone)]
 enum Event {
     Control(State),
     Action(Update, Option<usize>),
 }
-
+/*
 impl From<&State> for u8 {
     fn from(value: &State) -> Self {
         match value {
@@ -203,12 +225,7 @@ impl std::cmp::Ord for State {
         u8::from(other).cmp(&u8::from(self))
     }
 }
-
-struct On {
-    air: bool,
-    lights: bool,
-}
-
+*/
 fn id() -> u8 {
     static mut NEXT: NonZero<u8> = unsafe { NonZero::new_unchecked(73) };
     let id = unsafe { NEXT.get() };
@@ -227,38 +244,9 @@ pub struct Play<'a> {
     motion_v: i16,
     on: On,
     now: Option<State>,
-    hazards: HashMap<u8, Hazard>,
+//    hazards: HashMap<u8, Hazard>,
 }
-
-#[derive(Debug, Clone, Copy)]
-pub enum Dynamic {
-    Player{facing: Side, moving: Option<Side>, bounds: Rect},
-    Enemy{facing: Side, kind: Enemy, bounds: Rect},
-    Grease{facing: Side, spill: Option<NonZero<u16>>, bounds: Rect},
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum Entrance {
-    Spawn(Side),
-    Flying(Side, u16),
-    Up, 
-    Down,
-	Air,
-}
-
-impl Default for Entrance {
-    fn default() -> Self { Self::Spawn(Side::Left) }
-}
-
-impl Entrance {
-    fn action(&self) -> Option<State> {
-        Some(match self {
-            Self::Spawn(..) => State::FadingIn(0..16),
-            _ => return None
-        })
-    }
-}
-
+/*
 impl Room {
     pub fn collider_ids(&self) -> impl Iterator<Item = usize> + '_ {
         self.objects.iter().enumerate().filter_map(|(id, o)| o.collidable().then_some(id))
@@ -310,7 +298,8 @@ impl Room {
         }
     }
 }
-
+*/ 
+/*
 impl super::object::Object {
     fn action(&self, mut test: Rect, (h, v): &mut(i16, i16), id: usize, state: &Play) -> Option<Event> {
         type Kind = ObjectKind;
@@ -343,7 +332,8 @@ impl super::object::Object {
         }
     }
 }
-
+*/
+/*  
 const BOUNDS: [Object; 3] = [
     Object{
         object_is: ObjectKind::Wall,
@@ -361,8 +351,9 @@ const BOUNDS: [Object; 3] = [
         is_on: true,
     },
 ];
-
-impl<'a> Play<'a> {
+*/
+/*
+ impl<'a> Play<'a> {
     pub fn frame(&mut self, actions: &[Input]) -> Outcome {
         let signal = self.now.as_ref().map(|s| match s {
             State::FadingIn(..) => vec![Update::Fade(true)],
@@ -472,3 +463,4 @@ impl<'a> Play<'a> {
         }
     }
 }
+*/
