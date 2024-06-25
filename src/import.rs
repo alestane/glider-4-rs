@@ -385,8 +385,8 @@ impl TryFrom<(room::Id, binary::Room)> for Room {
             name: string_from_pascal(&header.name),
             back_pict_id: u16::from_be_bytes(header.back_pict_id),
             tile_order: header.tile_order.map(|[_, n]| n),
-            left_open: NonZero::new(header.left_right_open[0]).and_then(|_| Some(room::Id(NonZero::new(usize::from(id) - 1)?))),
-            right_open: (header.left_right_open[1] != 0).then_some((id.get() + 1).into()),
+            left_open: NonZero::new(header.left_right_open[0]).and_then(|_| id.prev()),
+            right_open: (header.left_right_open[1] != 0).then_some(()).and_then(|_| id.next()),
             animate: NonZero::new(u16::from_be_bytes(header.animate_number))
                 .zip(EnemyCode(u16::from_be_bytes(header.animate_kind)).into())
                 .map(|(n, kind)| (kind, n, u32::from_be_bytes(header.animate_delay))),
@@ -397,7 +397,7 @@ impl TryFrom<(room::Id, binary::Room)> for Room {
 }
 
 impl TryFrom<binary::House> for House {
-    type Error = <Room as TryFrom<(NonZero<u16>, binary::Room)>>::Error;
+    type Error = <Room as TryFrom<(room::Id, binary::Room)>>::Error;
     fn try_from(value: binary::House) -> Result<Self, Self::Error> {
         let header = &value.header;
         let n_rooms@0..=40 = u16::from_be_bytes(header.n_rooms) as usize else { return InvalidRoomError::Fail.into() };
