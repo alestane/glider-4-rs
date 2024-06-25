@@ -1,4 +1,4 @@
-use std::{num::NonZero, slice::SliceIndex};
+use std::{num::NonZero, slice::SliceIndex, ops::Index};
 
 use super::{*, object::Object};
 
@@ -80,18 +80,34 @@ pub struct Room {
     objects: Vec<Object>,
 }
 
-/*
-impl TryFrom<(u16, &[u8])> for Room {
-    type Error = ();
-    fn try_from(data: (u16, &[u8])) -> Result<Self, Self::Error> {
-        if data.1.len() < 58 {
-            Err( Self::Error::default() )
+impl Index<object::Id> for Room {
+    type Output = Object;
+    fn index(&self, index: object::Id) -> &Self::Output {
+        &self.objects[usize::from(index)]
+    }
+}
+
+pub enum RoomImportError<'a> {
+    ShortData(&'a [u8]),
+    TranscriptionErr(<Room as TryFrom<(Id, &'a [u8])>>::Error),
+}
+
+impl<'a> From<<Room as TryFrom<(Id, &'a [u8])>>::Error> for RoomImportError<'a> {
+    fn from(value: <Room as TryFrom<(Id, &'a [u8])>>::Error) -> Self { Self::TranscriptionErr(value) }
+}
+
+impl<'a> TryFrom<(NonZero<u16>, &'a [u8])> for Room {
+    type Error = RoomImportError<'a>;
+    fn try_from((id, data): (NonZero<u16>, &'a [u8])) -> Result<Self, Self::Error> {
+        if data.len() < import::ROOM_SIZE {
+            Err( RoomImportError::ShortData(data) )
         } else {
-            Ok(Self::from((data.0, import::RoomData::from_iter(data.1.iter().copied()))))
+            Ok(Self::try_from((Id(id), &data[..import::ROOM_SIZE]))?)
         }
     }
 }
 
+/*
 impl Room {
     pub fn walls(&self) -> impl SliceIndex<[Object], Output=[Object]> {
         fn step(i: Option<RoomId>) -> usize { i.is_some() as usize }
