@@ -7,14 +7,19 @@ extern crate disclose;
 
 #[disclose]
 mod prelude {
+    use std::num::NonZero; 
+
     use super::{
         Rect, Input, Outcome, Success, Side, Vertical, Environment, Update, 
-//        Room, House, 
-//        room::Enemy
+        Room, House, 
+        room::Enemy,
     };
     pub mod room {
-//    	use crate::room::{SCREEN_WIDTH, SCREEN_HEIGHT, VERT_CEILING, VERT_FLOOR};
-        type Id = std::num::NonZero<u16>;
+    	use crate::room::{SCREEN_WIDTH, SCREEN_HEIGHT, VERT_CEILING, VERT_FLOOR};
+        type Id = super::NonZero<u16>;
+    }
+    pub mod object {
+        type Id = super::NonZero<u16>;
     }
 } 
 
@@ -106,10 +111,10 @@ pub enum Vertical {
     Down, Up,
 }
 
-//pub use room::Room;
-//pub use house::House;
-//pub use object::{Object, ObjectKind};
-//pub use play::{Entrance, Play};
+pub use room::Room;
+pub use house::House;
+pub use object::Object;
+// pub use play::{Entrance, Play};
 
 mod object;
 mod room;
