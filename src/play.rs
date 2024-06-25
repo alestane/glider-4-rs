@@ -1,6 +1,6 @@
-use crate::{Environment, Point, Rect, Update, Vertical};
+use crate::{Environment, Position, Bounds, Update, Vertical};
 
-use super::{Input, Outcome, object::{Object, Kind}, room::{self, On, Room, Enemy}, Side};
+use super::{Input, Outcome, object::{self, Object, Kind}, room::{self, On, Room, Enemy}, Side};
 use std::{collections::{BTreeSet, HashMap}, iter::from_fn, num::NonZero, ops::Range};
 
 
@@ -39,16 +39,16 @@ impl Entrance {
         })
     }
 }
-/*
+
 #[derive(Debug, Clone)]
 struct Hazard {
     kind: Enemy,
-    position: Point,
+    position: Position,
     period: Range<i32>,
     is_on: bool,
-    control: Option<ObjectId>
+    control: Option<object::Id>
 }
-
+/*
 impl Enemy {
 	fn new(&self, delay: u32) -> Option<Hazard> {
 		Some(Hazard {
@@ -244,7 +244,7 @@ pub struct Play<'a> {
     motion_v: i16,
     on: On,
     now: Option<State>,
-//    hazards: HashMap<u8, Hazard>,
+    hazards: HashMap<u8, Hazard>,
 }
 /*
 impl Room {
