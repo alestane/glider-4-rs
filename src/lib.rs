@@ -70,7 +70,7 @@ pub enum Update {
 pub enum Outcome {
     Continue(Option<Vec<Update>>),
     Dead,
-//    Leave{score: u32, destination: Option<(prelude::room::Id, Entrance)>},
+    Leave{score: u32, destination: Option<(prelude::room::Id, Entrance)>},
 }
 
 #[derive(Debug, Clone)]
@@ -114,12 +114,12 @@ pub enum Vertical {
 pub use room::Room;
 pub use house::House;
 pub use object::Object;
-// pub use play::{Entrance, Play};
+pub use play::{Entrance, Play};
 
 mod object;
 mod room;
 mod house;
 
-// mod play;
+mod play;
 
 mod import;
