@@ -103,7 +103,7 @@ impl Kind {
 #[derive(Debug, Clone, Copy)]
 pub struct Object {
     kind: Kind,
-    position: Point<u16>,
+    position: Position,
 }
 
 impl Object {
@@ -111,7 +111,7 @@ impl Object {
         match self.kind { Kind::Painting | Kind::Outlet { .. } | Kind::Window( .. ) | Kind::Ball{..} => false, _ => true }
     }
  
-    pub fn active_area(&self) -> Rect<u16> {
+    pub fn active_area(&self) -> Bounds {
         let _position = self.position;
         match self.kind {
             // Kind::FloorVent { height } | Kind::Candle {height} => Rect::new_forced(position.x() - 8, position.y() - height, position.x() + 8, position.y()),
@@ -125,7 +125,7 @@ impl Object {
             // Kind::Fan { faces: Side::Left, range } => Rect{left_: range, top_: bounds.top() + 10, right_: bounds.left(), bottom_: bounds.top() + 30},
             // Kind::Stair(Vertical::Up, ..) => Rect{left_: bounds.left() + 32, top_: bounds.top(), right_: bounds.right() - 32, bottom_: bounds.top() + 8},
             // Kind::Stair(Vertical::Down, ..) => Rect{left_: bounds.left() + 32, top_: bounds.bottom() - 8, right_: bounds.right() - 32, bottom_: bounds.bottom()},
-            _ => unsafe { Rect::clamped_on(self.position.into(), NonZero::new_unchecked(1), NonZero::new_unchecked(1)) }
+            _ => unsafe { Bounds::clamped_on(self.position.into(), NonZero::new_unchecked(1), NonZero::new_unchecked(1)) }
         }
     }
 

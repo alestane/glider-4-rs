@@ -24,7 +24,7 @@ impl TryFrom<[u16; 4]> for Bounds {
     fn try_from(data: [u16; 4]) -> Result<Self, Self::Error> {
         let (true, true) = (data[3] > data[1], data[2] > data[0]) else { return Err(BadRectError::Inverted)};
         match (NonZero::new(data[3] - data[1]), NonZero::new(data[2] - data[0])) {
-            (Some(..), Some(..)) => Ok(unsafe{ Rect::new_unchecked(data[1], data[0], data[3], data[2])}),
+            (Some(..), Some(..)) => Ok(unsafe{ Bounds::new_unchecked(data[1], data[0], data[3], data[2])}),
             (width, height) => Err(BadRectError::Empty{width, height}),
         }
     }

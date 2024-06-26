@@ -1,4 +1,58 @@
-use std::{clone::Clone, cmp::{Eq, PartialEq}, fmt::Debug, marker::Copy, num::NonZero, ops::{Add, AddAssign, Mul}};
+use std::{
+    clone::Clone, cmp::{Eq, PartialEq}, fmt::Debug, marker::Copy, 
+    num::{NonZero, ZeroablePrimitive}, 
+    ops::{Add, AddAssign, Sub, SubAssign, DivAssign, Div, MulAssign, Mul, Shl, Neg}
+};
+
+#[const_trait]
+pub trait Transfer: Sized {
+    type Unsigned: ~const Transfer<Unsigned = Self::Unsigned>;
+    type Signed: ~const Transfer<Signed = Self::Signed>;
+    fn as_signed(&self) -> Self::Signed;
+    fn as_unsigned(&self) -> Self::Unsigned;
+}
+
+#[const_trait]
+trait Combine: Sized + Transfer<Unsigned: Copy, Signed: Copy> + Copy {
+    fn add_signed(self, rhs: Self::Signed) -> Self;
+    fn add_unsigned(self, rhs: Self::Unsigned) -> Self;
+    fn sub_signed(self, rhs: Self::Signed) -> Self;
+    fn sub_unsigned(self, rhs: Self::Unsigned) -> Self;
+    fn difference(self, rhs: Self) -> Self::Unsigned;
+    fn min(lhs: Self, rhs: Self) -> Self;
+}
+
+impl const Transfer for u16 {
+    type Unsigned = u16;
+    type Signed = i16;
+    fn as_signed(&self) -> Self::Signed { 0i16.saturating_add_unsigned(*self) }
+    fn as_unsigned(&self) -> Self::Unsigned { *self }
+}
+
+impl const Combine for u16 {
+    fn add_signed(self, rhs: Self::Signed) -> Self { self.saturating_add_signed(rhs) }
+    fn add_unsigned(self, rhs: Self::Unsigned) -> Self { self.saturating_add(rhs) }
+    fn sub_signed(self, rhs: Self::Signed) -> Self { self.saturating_add_signed(-rhs) }
+    fn sub_unsigned(self, rhs: Self::Unsigned) -> Self { self.saturating_sub(rhs) }
+    fn difference(self, rhs: Self) -> Self::Unsigned { self.abs_diff(rhs) }
+    fn min(lhs: Self, rhs: Self) -> Self { if lhs < rhs {lhs} else {rhs} }
+}
+
+impl const Transfer for i16 {
+    type Unsigned = u16;
+    type Signed = i16;
+    fn as_signed(&self) -> Self::Signed { *self }
+    fn as_unsigned(&self) -> Self::Unsigned { 0u16.saturating_add_signed(*self) }
+}
+
+impl const Combine for i16 {
+    fn add_signed(self, rhs: Self::Signed) -> Self { self.saturating_add(rhs) }
+    fn add_unsigned(self, rhs: Self::Unsigned) -> Self { self.saturating_add_unsigned(rhs) }
+    fn sub_signed(self, rhs: Self::Signed) -> Self { self.saturating_sub(rhs)}
+    fn sub_unsigned(self, rhs: Self::Unsigned) -> Self { self.saturating_sub_unsigned(rhs) }
+    fn difference(self, rhs: Self) -> Self::Unsigned { self.abs_diff(rhs) }
+    fn min(lhs: Self, rhs: Self) -> Self { if lhs < rhs {lhs} else {rhs} }
+}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,49 +69,33 @@ impl Default for Point<i16> {
     fn default() -> Self { Self {x_: 0, y_: 0} }
 }
 
-#[const_trait]
-trait Narrow<N> {
-    fn narrow(&self) -> N;
-}
-
-impl const Narrow<u16> for u16 {
-    fn narrow(&self) -> u16 { *self }
-}
-
-impl const Narrow<u16> for i16 {
-    fn narrow(&self) -> u16 { 0u16.saturating_add_signed(*self) }
-}
-
-impl const Narrow<i16> for u16 {
-    fn narrow(&self) -> i16 { 0i16.saturating_add_unsigned(*self) }
-}
-
-impl const Narrow<i16> for i16 {
-    fn narrow(&self) -> i16 { *self }
-}
-
 impl<N: Copy> Point<N> {
     pub const fn new(x: N, y: N) -> Self { Self{x_: x, y_: y} }
     pub const fn x(&self) -> N { self.x_ }
     pub const fn y(&self) -> N { self.y_ }
 }
 
-impl Point<u16> {
-    pub(crate) const fn narrow<N: ~const Narrow<u16>>(value: &Point<N>) -> Self {
-        Self::new(value.x_.narrow(), value.y_.narrow()) 
-    }
+impl<T: ~const Transfer> const Transfer for Point<T> {
+    type Unsigned = Point<T::Unsigned>;
+    type Signed = Point<T::Signed>;
+    fn as_signed(&self) -> Self::Signed { Self::Signed{x_: self.x_.as_signed(), y_: self.y_.as_signed()} }
+    fn as_unsigned(&self) -> Self::Unsigned { Self::Unsigned{x_: self.x_.as_unsigned(), y_: self.y_.as_unsigned()} }
 }
 
-impl Point<i16> {
-    pub(crate) const fn narrow<N: ~const Narrow<i16>>(value: &Point<N>) -> Self {
-        Self::new(value.x_.narrow(), value.y_.narrow()) 
-    }   
+impl<T: ~const Combine> const Combine for Point<T> {
+    fn add_signed(self, rhs: Self::Signed) -> Self { Self{x_: self.x_.add_signed(rhs.x_), y_: self.y_.add_signed(rhs.y_)} }
+    fn add_unsigned(self, rhs: Self::Unsigned) -> Self { Self{x_: self.x_.add_unsigned(rhs.x_), y_: self.y_.add_unsigned(rhs.y_)} }
+    fn sub_signed(self, rhs: Self::Signed) -> Self { Self{x_: self.x_.sub_signed(rhs.x_), y_: self.y_.sub_signed(rhs.y_)} }
+    fn sub_unsigned(self, rhs: Self::Unsigned) -> Self { Self{x_: self.x_.sub_unsigned(rhs.x_), y_: self.y_.sub_unsigned(rhs.y_)} }
+    fn difference(self, rhs: Self) -> Self::Unsigned { Self::Unsigned{ x_: self.x_.difference(rhs.x_), y_: self.y_.difference(rhs.y_) } }
+    fn min(lhs: Self, rhs: Self) -> Self { Self{x_: T::min(lhs.x_, rhs.x_), y_: T::min(lhs.y_, rhs.y_)} }
+    
 }
 
 impl TryFrom<Point<i16>> for Point<u16> {
     type Error = <u16 as TryFrom<i16>>::Error;
     fn try_from(value: Point<i16>) -> Result<Self, Self::Error> {
-        Ok(Self{ x_: u16::try_from(value.x_)?, y_: u16::try_from(value.y_)? })
+        Ok(Self{x_: u16::try_from(value.x_)?, y_: u16::try_from(value.y_)?})
     }
 }
 
@@ -68,6 +106,10 @@ impl TryFrom<Point<u16>> for Point<i16> {
     }
 }
 
+impl<N: Copy> From<N> for Point<N> {
+    fn from(value: N) -> Self { Self{x_: value, y_: value} }
+}
+
 impl<N: Copy> From<(N, N)> for Point<N> {
     fn from((x_, y_): (N, N)) -> Self { Self{x_, y_} }
 }
@@ -76,12 +118,12 @@ impl<N: Copy> From<Point<N>> for (N, N) {
 	fn from(Point{x_, y_}: Point<N>) -> Self { (x_, y_) }
 }
 
-impl std::ops::Neg for Point<i16> {
+impl<T: Transfer<Signed = T> + Neg<Output = T>> Neg for Point<T> {
 	type Output = Self;
 	fn neg(self) -> Self { Self {x_: -self.x_, y_: -self.y_} }
 }
 
-impl<N: AddAssign<N>, I: Into<Point<N>>> AddAssign<I> for Point<N> {
+impl<N: AddAssign, I: Into<Point<N>>> AddAssign<I> for Point<N> {
 	fn add_assign(&mut self, rhs: I) {
 		let Point{x_, y_} = rhs.into();
 		self.x_ += x_;
@@ -89,92 +131,95 @@ impl<N: AddAssign<N>, I: Into<Point<N>>> AddAssign<I> for Point<N> {
 	}
 }
 
-impl<N: Add<N, Output=N>, I: Into<Point<N>>> Add<I> for Point<N>  where Self: AddAssign<I>{ 
+impl<N: Add<Output=N>, I: Into<Point<N>>> Add<I> for Point<N>  where Self: AddAssign<I>{ 
 	type Output = Self;
 	fn add(mut self, rhs: I) -> Self::Output { self += rhs; self }
 }
 
-impl<I: Into<Point<i16>>> std::ops::Sub<I> for Point<i16> {
-	type Output = Self;
-	fn sub(self, rhs: I) -> Self::Output { let other: Point<i16> = rhs.into(); self + -other }
-}
-
-impl<I: Into<Point<i16>>> std::ops::Mul<I> for Point<i16> {
-	type Output = Self;
-	fn mul(mut self, rhs: I) -> Self::Output { self *= rhs; self }
-}
-
-impl std::ops::Mul<i16> for Point<i16> {
-	type Output = Self;
-	fn mul(mut self, rhs: i16) -> Self::Output { self *= rhs; self }
-}
-
-impl<I: Into<Point<i16>>> std::ops::MulAssign<I> for Point<i16> {
-	fn mul_assign(&mut self, rhs: I) {
-		let Point { x_, y_ } = rhs.into();
-		self.x_ *= x_;
-		self.y_ *= y_;
-    }
-}
-
-impl std::ops::MulAssign<i16> for Point<i16> {
-	fn mul_assign(&mut self, rhs: i16) {
-    	let n: i16 = rhs.into();
-    	*self *= (n, n);
+impl<N: SubAssign, I: Into<Point<N>>> SubAssign<I> for Point<N> {
+	fn sub_assign(&mut self, rhs: I) {
+		let Point{x_, y_} = rhs.into();
+		self.x_ -= x_;
+		self.y_ -= y_;
 	}
 }
 
-impl<I: Into<Point<i16>>> std::ops::Div<I> for Point<i16> {
+impl<N: Sub<Output=N>, I: Into<Point<N>>> Sub<I> for Point<N> where Self: SubAssign<I>{
+	type Output = Self;
+	fn sub(mut self, rhs: I) -> Self::Output { self -= rhs; self }
+}
+
+impl<N: MulAssign, I: Into<Point<N>>> MulAssign<I> for Point<N> {
+    fn mul_assign(&mut self, rhs: I) {
+        let Point{x_, y_} = rhs.into();
+        self.x_ *= x_;
+        self.y_ *= y_;
+    }
+}
+
+impl<N: Mul<Output = N>, I: Into<Point<N>>> Mul<I> for Point<N> where Self: MulAssign<I> {
+    type Output = Self;
+    fn mul(mut self, rhs: I) -> Self::Output { self *= rhs; self }
+}
+
+impl<N: DivAssign, I: Into<Point<N>>> DivAssign<I> for Point<N> {
+    fn div_assign(&mut self, rhs: I) {
+        let Point{x_, y_} = rhs.into();
+        self.x_ /= x_;
+        self.y_ /= y_;
+    }
+}
+
+impl<N: Div<Output = N>, I: Into<Point<N>>> Div<I> for Point<N> where Self: DivAssign<I> {
 	type Output = Self;
 	fn div(mut self, rhs: I) -> Self::Output { self /= rhs; self }
 }
 
-impl std::ops::Div<i16> for Point<i16> {
-	type Output = Self;
-	fn div(mut self, rhs: i16) -> Self::Output { self /= rhs; self }
-}
-
-impl<I: Into<Point<i16>>> std::ops::DivAssign<I> for Point<i16> {
-	fn div_assign(&mut self, rhs: I) {
-		let Point { x_, y_ } = rhs.into();
-		self.x_ /= x_;
-		self.y_ /= y_;
-    }
-}
-
-impl std::ops::DivAssign<i16> for Point<i16> {
-	fn div_assign(&mut self, rhs: i16) {
-    	let n: i16 = rhs.into();
-    	*self /= (n, n);
-	}
-}
-
-impl<I: Into<Point<i16>>> std::ops::SubAssign<I> for Point<i16> {
-	fn sub_assign(&mut self, rhs: I) { let other: Point<i16> = rhs.into(); *self += -other; }
-}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Size {
-    width_: NonZero<u16>,
-    height_: NonZero<u16>,
+pub struct Displacement<T: Transfer<Signed = T>> {
+    x_: T,
+    y_: T,
 }
 
-impl Size {
-    pub(crate) const fn new(width: u16, height: u16) -> Option<Self> { 
+impl<T: Transfer<Signed = T>> Displacement<T> {
+    const fn new(x_: T, y_: T) -> Self { Self{x_, y_} }
+}
+
+impl<T: Transfer<Signed = T> + From<i8>> Default for Displacement<T> {
+    fn default() -> Self { Self{x_: 0i8.into(), y_: 0i8.into()} }
+}
+
+impl<T: Transfer<Signed = T> + Copy> From<Point<T>> for Displacement<T> {
+    fn from(value: Point<T>) -> Self { Self{x_: value.x_, y_: value.y_} }
+}
+
+impl<T: Transfer<Signed = T> + Copy> From<Displacement<T>> for Point<T> {
+    fn from(value: Displacement<T>) -> Self { Self{x_: value.x_, y_: value.y_} }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Size<T: Transfer<Unsigned = T> + ZeroablePrimitive>{
+    width_: NonZero<T::Unsigned>,
+    height_: NonZero<T::Unsigned>,
+}
+
+impl<T: Transfer<Unsigned = T> + ZeroablePrimitive> Size<T> {
+    pub(crate) const fn new(width: T, height: T) -> Option<Self> { 
         match (NonZero::new(width), NonZero::new(height)) {
             (Some(width_), Some(height_)) => Some(Self{width_, height_}),
             _ => None,
         } 
     }
-    pub(crate) const unsafe fn new_unchecked(width_: u16, height_: u16) -> Self { 
+    pub(crate) const unsafe fn new_unchecked(width_: T, height_: T) -> Self { 
         let (width_, height_) =  (NonZero::new_unchecked(width_), NonZero::new_unchecked(height_));
         Self { width_, height_}
     }
-    pub const fn width(&self) -> u16 { self.width_.get() }
-    pub const fn height(&self) -> u16 { self.height_.get() }
+    pub const fn width(&self) -> T { self.width_.get() }
+    pub const fn height(&self) -> T { self.height_.get() }
 }
 
-impl From<(NonZero<u16>, NonZero<u16>)> for Size {
-    fn from(value: (NonZero<u16>, NonZero<u16>)) -> Self { Self{width_: value.0, height_: value.1} }
+impl<T: Transfer<Unsigned = T> + ZeroablePrimitive> From<(NonZero<T>, NonZero<T>)> for Size<T> {
+    fn from(value: (NonZero<T>, NonZero<T>)) -> Self { Self{width_: value.0, height_: value.1} }
 }
 
 pub(crate) enum Span {Left = -1, Center = 0, Right = 1}
@@ -182,70 +227,83 @@ pub(crate) enum Rise {Top = -1, Center = 0, Bottom = 1}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Rect<N: Debug + Clone + Copy + PartialEq + Eq + TryInto<u16>> {
+pub struct Rect<N: Debug + Clone + Copy + PartialEq + Eq + Combine> where N::Unsigned: ZeroablePrimitive {
     left_: N,
     top_: N,
-    width_: NonZero<u16>,
-    height_: NonZero<u16>,
+    width_: NonZero<N::Unsigned>,
+    height_: NonZero<N::Unsigned>,
+}
+
+#[const_trait]
+trait Framer<T: ~const Transfer<Unsigned: Transfer<Unsigned = T::Unsigned> + ZeroablePrimitive> + Sized>: Sized {
+    fn new(left: T, top: T, right: T, bottom: T) -> Option<Self>;
+    unsafe fn new_unchecked(left: u16, top: u16, right: u16, bottom: u16) -> Self;
+    fn clamped_on<I: Into<Point<T>>, S: Into<Size<T::Unsigned>>>(center: I, size: S) -> Self;
 }
 
 impl Rect<u16> {
-    pub(crate) const fn new(left: u16, top: u16, right: u16, bottom: u16) -> Option<Self> {
-        let (Some(width_), Some(height_)) = (NonZero::new(right.abs_diff(left)), NonZero::new(bottom.abs_diff(top))) else {
+}
+
+impl <
+T: Combine<Unsigned: ZeroablePrimitive + Transfer<Signed = T::Signed> + From<u8> + Div<Output = T::Unsigned>> 
++ Sub<Output = T::Unsigned> + Debug + Eq + Ord + Copy + ZeroablePrimitive
+>    Rect<T> {
+    pub(crate) const fn new(left: T, top: T, right: T, bottom: T) -> Option<Self> where T: ~const Combine {
+        let (left_, top_) = (if left < right {left} else {right}, if top < bottom {top} else {bottom});
+        let (Some(width_), Some(height_)) = (NonZero::new(right.difference(left)), NonZero::new(bottom.difference(top))) else {
             return None
         };
-        let (left_, top_) = (if left < right {left} else {right}, if top < bottom {top} else {bottom});
         Some(Self {
             left_, top_, width_, height_,
         })
     }
-
-    pub(crate) const unsafe fn new_unchecked(left: u16, top: u16, right: u16, bottom: u16) -> Self {
-        let left_ = if right < left {right} else {left};
-        let top_ = if bottom < top {bottom} else {top};
-        let width_ = NonZero::new_unchecked(right.abs_diff(left));
-        let height_ = NonZero::new_unchecked(bottom.abs_diff(top));
-        Self {left_, top_, width_, height_}
+    
+    pub(crate) const unsafe fn new_unchecked(left: T, top: T, right: T, bottom: T) -> Self where T: ~const Combine {
+        let (left_, top_) = (<T as Combine>::min(left, right), <T as Combine>::min(top, bottom));
+        let width_ = NonZero::new_unchecked(right.difference(left));
+        let height_ = NonZero::new_unchecked(bottom.difference(top));
+        Self{left_, top_, width_, height_}
     }
 
-    pub(crate) fn cropped_on(center: (u16, u16), width: NonZero<u16>, height: NonZero<u16>) -> Option<Self> {
+    pub(crate) fn cropped_on(center: (T, T), width: NonZero<T::Unsigned>, height: NonZero<T::Unsigned>) -> Option<Self> {
         let (width_, height_) = (width.get(), height.get());
         Some(Self{
-            left_: center.0.saturating_sub(width_ / 2),
-            top_: center.1.saturating_sub(height_ / 2),
-            width_: NonZero::new(center.0.saturating_add(width_) - center.0)?,
-            height_: NonZero::new(center.1.saturating_add(height_) - center.1)?,
+            left_: center.0.sub_unsigned(width_ / T::Unsigned::from(2u8)),
+            top_: center.1.sub_unsigned(height_ / T::Unsigned::from(2u8)),
+            width_: NonZero::new(center.0.add_unsigned(width_) - center.0)?,
+            height_: NonZero::new(center.1.add_unsigned(height_) - center.1)?,
         })
     }
 
-    pub(crate) const fn clamped_on(center: (u16, u16), width: NonZero<u16>, height: NonZero<u16>) -> Self {
+    pub(crate) const fn clamped_on(center: (T, T), width: NonZero<T::Unsigned>, height: NonZero<T::Unsigned>) -> Self where T: ~const Combine {
         let (width_, height_) = (width, height);
         let (width, height) = (width_.get(), height_.get());
-        let mut left_ = center.0.saturating_sub(width / 2);
-        let mut top_ = center.1.saturating_sub(width / 2);
-        let right_ = left_.saturating_add(width);
-        let bottom_ = top_.saturating_add(height);
-        left_ = left_.min(right_ - width);
-        top_ = top_.min(bottom_ - height);
+        let left_ = center.0.sub_unsigned(width / 2.into());
+        let top_ = center.1.sub_unsigned(height / 2.into());
+        let right_ = left_.add_unsigned(width);
+        let bottom_ = top_.add_unsigned(height);
+        let (left, top) = (right_.sub_unsigned(width), bottom_.sub_unsigned(height));
+        let left_: T = if left < left_ { left } else {left_}.into();
+        let top_ = if top < top_ { top } else {top_}.into();
         Self {
             left_, top_, width_, height_
         }
     }
 
-    pub const fn left  (&self) -> u16 { self.left_   }
-    pub const fn top   (&self) -> u16 { self.top_    }
-    pub const fn right (&self) -> u16 { self.left_ + self.width_.get() }
-    pub const fn bottom(&self) -> u16 { self.top_ + self.height_.get()  }
+    pub const fn left  (&self) -> T { self.left_   }
+    pub const fn top   (&self) -> T { self.top_    }
+    pub const fn right (&self) -> T where T: ~const Combine { self.left_.add_unsigned(self.width_.get()) }
+    pub const fn bottom(&self) -> T where T: ~const Combine { self.top_.add_unsigned(self.height_.get()) }
 
-    pub const fn width (&self) -> NonZero<u16> { self.width_ }
-    pub const fn height(&self) -> NonZero<u16> { self.height_ }
+    pub const fn width (&self) -> NonZero<T::Unsigned> { self.width_ }
+    pub const fn height(&self) -> NonZero<T::Unsigned> { self.height_ }
 
-    pub const fn size(&self) -> Size { Size{width_: self.width_, height_: self.height_} }
+    pub const fn size(&self) -> Size<T::Unsigned> { Size{width_: self.width_, height_: self.height_} }
 
-    pub const fn x(&self) -> u16 { self.left_ + self.width_.get() / 2 }
-    pub const fn y(&self) -> u16 { self.top_ + self.height_.get() / 2 }
+    pub const fn x(&self) -> T where T: ~const Combine { self.left_.add_unsigned(self.width_.get() / 2.into()) }
+    pub const fn y(&self) -> T where T: ~const Combine { self.top_.add_unsigned(self.height_.get() / 2.into()) }
 
-    pub const fn center(&self) -> Point<u16> {Point::new( self.x(), self.y() )}
+    pub const fn center(&self) -> Point<T> where T: ~const Combine { Point::new( self.x(), self.y() ) }
 }
 
 impl Default for Rect<u16> {
@@ -332,5 +390,53 @@ impl Mul<(Rise, Span)> for Rect<u16> {
     type Output = Point<u16>;
     fn mul(self, (v, h): (Rise, Span)) -> Self::Output {
         self * (h, v)
+    }
+}
+
+impl<T> Div<(Span, Rise)> for Size<T>
+where 
+    T: ZeroablePrimitive + Combine<Unsigned = T> + Div<Output = T::Unsigned> + From<u8>,
+    T::Signed: Debug + Eq + Combine<Unsigned = T> + From<i8>,
+    <T::Signed as Transfer>::Unsigned: ZeroablePrimitive 
+{
+    type Output = Rect<T::Signed>;
+    fn div(self, (h, v): (Span, Rise)) -> Self::Output {
+        let left_ = T::Signed::from(0i8).sub_unsigned( match h {
+            Span::Left => 0.into(), Span::Center => self.width() / 2u8.into(), Span::Right => self.width(),
+        } );
+        let top_ = T::Signed::from(0i8).sub_unsigned( match v {
+            Rise::Top => 0.into(), Rise::Center => self.height() / 2u8.into(), Rise::Bottom => self.height()
+        } );
+        let (width_, height_) = (self.width_, self.height_);
+        Rect{
+            left_,
+            top_,
+            width_,
+            height_,
+        }
+    }
+}
+
+impl Shl<Point<u16>> for Rect<i16> {
+    type Output = Rect<u16>;
+    fn shl(self, rhs: Point<u16>) -> Self::Output {
+        Rect{
+            left_: rhs.x_.saturating_add_signed(self.left_),
+            top_: rhs.y_.saturating_add_signed(self.top_),
+            width_: self.width_,
+            height_: self.height_
+        }
+    }
+}
+
+impl Shl<Point<i16>> for Rect<i16> {
+    type Output = Rect<i16>;
+    fn shl(self, rhs: Point<i16>) -> Self::Output {
+        Rect{
+            left_: rhs.x_.saturating_add(self.left_),
+            top_: rhs.y_.saturating_add(self.top_),
+            width_: self.width_,
+            height_: self.height_
+        }
     }
 }

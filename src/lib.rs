@@ -1,4 +1,8 @@
-#![feature(iter_next_chunk, slice_as_chunks, const_trait_impl, effects, generic_arg_infer, iterator_try_collect, generic_const_exprs)]
+#![feature(
+    iter_next_chunk, slice_as_chunks, iterator_try_collect, 
+    const_trait_impl, effects, generic_arg_infer, generic_const_exprs, const_refs_to_cell,
+    nonzero_internals
+)]
 
 #[macro_use]
 extern crate disclose;
@@ -9,8 +13,9 @@ extern crate disclose;
 mod prelude {
     use std::num::NonZero; 
 
-    use super::{
-        Rect, Input, Outcome, Success, Side, Vertical, Environment, Update, 
+    pub type Rect = super::cart::Rect<u16>;
+    pub use super::{
+        Input, Outcome, Success, Side, Vertical, Environment, Update, 
         Room, House, 
         room::Enemy,
     };
@@ -25,10 +30,10 @@ mod prelude {
 
 mod cart;
 
-pub use cart::{Point, Rect, Size};
-type Bounds = Rect<u16>;
-type Position = Point<u16>;
-type Reference = Point<i16>;
+pub type Bounds = cart::Rect<u16>;
+pub type Position = cart::Point<u16>;
+pub type Reference = cart::Point<i16>;
+pub type Size = cart::Size<u16>;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Input {

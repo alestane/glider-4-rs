@@ -7,7 +7,7 @@ pub const SCREEN_WIDTH:		u16 = 512;
 pub const VERT_CEILING:		u16 = 24;
 pub const VERT_FLOOR:		u16 = 325;
 
-pub const BOUNDS:	Bounds = unsafe { Rect::new_unchecked(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT) };
+pub const BOUNDS:	Bounds = unsafe { Bounds::new_unchecked(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT) };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
