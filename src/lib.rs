@@ -33,6 +33,7 @@ mod cart;
 pub type Bounds = cart::Rect<u16>;
 pub type Position = cart::Point<u16>;
 pub type Reference = cart::Point<i16>;
+pub type Displacement = cart::Displacement<i16>;
 pub type Size = cart::Size<u16>;
 
 #[derive(Debug, Clone, Copy)]
