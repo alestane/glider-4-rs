@@ -46,19 +46,19 @@ pub enum Enemy {
     Shock,
 }
 
-/* 
-impl From<ObjectKind> for Option<Enemy> {
-    fn from(value: ObjectKind) -> Self {
+
+impl From<object::Kind> for Option<Enemy> {
+    fn from(value: object::Kind) -> Self {
         Some(match value {
-            ObjectKind::Candle { .. } => Enemy::Flame,
-            ObjectKind::Fishbowl { .. } => Enemy::Fish,
-            ObjectKind::Ball{ .. } => Enemy::Ball,
-            ObjectKind::Toaster { .. } => Enemy::Toast,
-            ObjectKind::Outlet { .. } => Enemy::Shock,
+            object::Kind::Candle { .. } => Enemy::Flame,
+            object::Kind::Fishbowl { .. } => Enemy::Fish,
+            object::Kind::Ball{ .. } => Enemy::Ball,
+            object::Kind::Toaster { .. } => Enemy::Toast,
+            object::Kind::Outlet { .. } => Enemy::Shock,
             _ => return None
         })
     }
-} */
+} 
 
 #[disclose]
 #[derive(Debug, Clone, Copy, PartialEq)]
