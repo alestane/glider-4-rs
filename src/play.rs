@@ -1,7 +1,7 @@
-use crate::{Environment, Position, Bounds, Update, Vertical};
+use crate::{Environment, Position, Reference, Displacement, Bounds, Update, Vertical, cart::Transfer};
 
 use super::{Input, Outcome, object::{self, Object, Kind}, room::{self, On, Room, Enemy}, Side};
-use std::{collections::{BTreeSet, HashMap}, iter::from_fn, num::NonZero, ops::Range};
+use std::{collections::{BTreeMap, BTreeSet, HashMap}, iter::from_fn, num::NonZero, ops::Range};
 
 
 fn random() -> u16 {
@@ -43,36 +43,35 @@ impl Entrance {
 #[derive(Debug, Clone)]
 struct Hazard {
     kind: Enemy,
-    position: Position,
+    position: Reference,
     period: Range<i32>,
     is_on: bool,
     control: Option<object::Id>
 }
-/*
 impl Enemy {
-	fn new(&self, delay: u32) -> Option<Hazard> {
-		Some(Hazard {
-			kind: *self,
+    fn new(&self, delay: u32) -> Option<Hazard> {
+        Some(Hazard {
+            kind: *self,
 			position: if let Some(start) = self.start() {start} else {return None},
 			period: Self::period(delay),
 			is_on: true,
             control: None,
-		})
-	}
-	fn start(&self) -> Option<Point> {
+            })
+    }
+	fn start(&self) -> Option<Reference> {
 		Some(match self {
             Self::Dart => (544, (random() % 150) as i16 + 11),
 			Self::Balloon => ((random() % 400)  as i16 + 50, 358),
             Self::Copter => ((random() % 256) as i16 + 272, -16),
 			_ => return None
-		}.into())
-	}
+        }.into())
+    }
 	fn period(delay: u32) -> Range<i32> {
 		let delay = delay as i32;
 		(delay - (random() as i32 % (delay + 60) + 30))..delay
-	}
+    }
 }
-
+     /* 
 impl Hazard {
 	fn bounds(&self) -> Option<Rect> {
 		let (width, height) = unsafe { match self.kind {
@@ -117,23 +116,23 @@ impl Hazard {
 		}
 	}
 }
-
+*/
+ 
 impl Object {
-    fn effect(&self, this: ObjectId) -> Option<Hazard> {
-        let bounds = self.bounds;
-        Option::<Enemy>::from(self.object_is).and_then(|kind|
+    fn effect(&self, this: object::Id) -> Option<Hazard> {
+        Option::<Enemy>::from(self.kind).and_then(|kind|
             Some(match kind {
                 Enemy::Flame => Hazard{
                     kind, 
                     period: 0..0, 
-                    position: (bounds.left() as i16 + 10, bounds.top() as i16 - 6).into(), 
+                    position: self.position.as_signed() - (0, 20), 
                     is_on: true, 
                     control: this.into()
                 },
                 Enemy::Shock => Hazard{
                     kind, 
-                    period: if let ObjectKind::Outlet { delay } = self.object_is {0..(delay as i32)} else {return None}, 
-                    position: (bounds.x() as i16, bounds.y() as i16).into(), 
+                    period: if let object::Kind::Outlet { delay, .. } = self.kind {0..(delay as i32)} else {return None}, 
+                    position: self.position.as_signed(),
                     is_on: false, 
                     control: this.into()
                 },
@@ -142,7 +141,7 @@ impl Object {
         )
     }
 }
-*/
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum State {
 	Escaping(Option<room::Id>),
@@ -238,22 +237,21 @@ pub struct Play<'a> {
     score: u32,
     items: BTreeSet<usize>,
     facing: Side,
-    player_h: i16,
-    player_v: i16,
-    motion_h: i16,
-    motion_v: i16,
+    player: Reference,
+    motion: Displacement,
     on: On,
     now: Option<State>,
+    ready: BTreeMap<object::Id, bool>,
     hazards: HashMap<u8, Hazard>,
 }
-/*
 impl Room {
     pub fn collider_ids(&self) -> impl Iterator<Item = usize> + '_ {
         self.objects.iter().enumerate().filter_map(|(id, o)| o.collidable().then_some(id))
     }
+    
     fn entrance(&self, from: Entrance) -> i16 {
-        fn is_active_duct(o: &&Object) -> bool { matches!(o, Object{object_is: ObjectKind::CeilingDuct { .. }, is_on: true, ..}) }
-        fn is_down_stair(o: &&Object) -> bool { matches!(o.object_is, ObjectKind::Stair(Vertical::Down, _)) }
+        fn is_active_duct(o: &&Object) -> bool { matches!(o.kind, object::Kind::CeilingDuct { .. }) }
+        fn is_down_stair(o: &&Object) -> bool { matches!(o.kind, object::Kind::Stair(Vertical::Down, _)) }
         self.objects.iter()
         .filter(
             match from {
@@ -262,8 +260,9 @@ impl Room {
                 _ => return 232
             }
         )
-        .map(|o| o.bounds.left() as i16).last().unwrap_or(232)
+        .map(|o| o.position.x() as i16).last().unwrap_or(232)
     }
+
     fn enter_at(&self, from: Entrance) -> ((i16, i16), Side) {
         match from {
         	Entrance::Air => ((self.entrance(from) + 24, room::VERT_CEILING as i16 + 10), Side::Right),
@@ -274,22 +273,22 @@ impl Room {
 //            Entrance::Appearing(target) => {let bounds = self.objects[target as usize].bounds; (bounds.x(), bounds.y(), Side::Right)}
         }
     }
+
     pub fn start(&self, from: Entrance) -> Play {
         let ((x, y), facing) = self.enter_at(from);
         for o in &self.objects {
         	eprintln!("{o:?}");
         }
-        eprintln!("{:?}", self.condition_code);
+        eprintln!("{:?}", self.environs);
         Play {
             room: self,
             score: 0,
             items: BTreeSet::<usize>::from_iter(self.collider_ids()),
             facing,
-            player_h: x,
-            player_v: y,
-            motion_h: 0,
-            motion_v: 0,
-            on: On{air: self.condition_code != Some(Deactivated::Air), lights: self.condition_code != Some(Deactivated::Lights)},
+            player: (x, y).into(),
+            motion: Displacement::default(),
+            on: self.environs,
+            ready: BTreeMap::new(),
             now: from.action(),
             hazards: HashMap::from_iter(self.objects.iter().enumerate()
             	.filter_map(|(id, o)| o.effect(id.into()))
@@ -298,7 +297,6 @@ impl Room {
         }
     }
 }
-*/ 
 /*
 impl super::object::Object {
     fn action(&self, mut test: Rect, (h, v): &mut(i16, i16), id: usize, state: &Play) -> Option<Event> {
