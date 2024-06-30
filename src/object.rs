@@ -1,7 +1,7 @@
 use super::{*, cart::{Rise, Span}};
 use std::num::NonZero;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct Id(pub NonZero<u16>);
 
