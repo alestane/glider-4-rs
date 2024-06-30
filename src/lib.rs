@@ -7,7 +7,11 @@
 #[macro_use]
 extern crate disclose;
 
-//use std::{num::NonZero, time::{Duration, SystemTime}};
+use std::{
+    // num::NonZero, 
+    ops::{Mul, Neg}, 
+    // time::{Duration, SystemTime}
+};
 
 #[disclose]
 mod prelude {
@@ -92,7 +96,7 @@ pub enum Side {
     Left, Right,
 }
 
-impl std::ops::Mul<i16> for Side {
+impl Mul<i16> for Side {
     type Output = i16;
     fn mul(self, rhs: i16) -> Self::Output {
         match self {
@@ -102,7 +106,14 @@ impl std::ops::Mul<i16> for Side {
     }
 }
 
-impl std::ops::Neg for Side {
+impl Mul<Side> for Displacement {
+    type Output = Displacement;
+    fn mul(self, rhs: Side) -> Self::Output {
+        Self::new(rhs * self.x(), self.y())
+    }
+}
+
+impl Neg for Side {
     type Output = Self;
     fn neg(self) -> Self::Output {
         match self {
