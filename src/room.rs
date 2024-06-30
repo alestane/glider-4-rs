@@ -107,18 +107,17 @@ impl<'a> TryFrom<(NonZero<u16>, &'a [u8])> for Room {
     }
 }
 
-/*
 impl Room {
     pub fn walls(&self) -> impl SliceIndex<[Object], Output=[Object]> {
-        fn step(i: Option<RoomId>) -> usize { i.is_some() as usize }
+        fn step(i: Option<room::Id>) -> usize { i.is_some() as usize }
+
         step(self.left_open)..=(2 - step(self.right_open))
     }
-
+    
     pub fn theme_index(&self) -> u16 { self.back_pict_id }
 }
-
+        
 impl std::ops::Index<Side> for Room {
-	type Output = Option<RoomId>;
+	type Output = Option<room::Id>;
 	fn index(&self, which: Side) -> &Self::Output { match which {Side::Left=>&self.left_open, Side::Right=>&self.right_open} }
 }
- */
