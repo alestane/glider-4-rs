@@ -6,8 +6,8 @@ use std::{
 
 #[const_trait]
 pub trait Transfer: Sized {
-    type Unsigned: ~const Transfer<Unsigned = Self::Unsigned, Signed = Self::Signed>;
-    type Signed: ~const Transfer<Signed = Self::Signed, Unsigned = Self::Unsigned>;
+    type Unsigned: ~const Transfer<Unsigned = Self::Unsigned, Signed = Self::Signed> + TryFrom<Self::Signed>;
+    type Signed: ~const Transfer<Signed = Self::Signed, Unsigned = Self::Unsigned> + TryFrom<Self::Unsigned>;
     fn as_signed(&self) -> Self::Signed;
     fn as_unsigned(&self) -> Self::Unsigned;
 }
@@ -78,14 +78,24 @@ impl<N: Copy> Point<N> {
     pub const fn y(&self) -> N { self.y_ }
 }
 
-impl<T: ~const Transfer> const Transfer for Point<T> {
+impl<T> const Transfer for Point<T> 
+where 
+    T: ~const Transfer,
+    Point<T::Unsigned>: TryFrom<Point<T::Signed>>,
+    Point<T::Signed>: TryFrom<Point<T::Unsigned>>
+{
     type Unsigned = Point<T::Unsigned>;
     type Signed = Point<T::Signed>;
     fn as_signed(&self) -> Self::Signed { Self::Signed{x_: self.x_.as_signed(), y_: self.y_.as_signed()} }
     fn as_unsigned(&self) -> Self::Unsigned { Self::Unsigned{x_: self.x_.as_unsigned(), y_: self.y_.as_unsigned()} }
 }
 
-impl<T: ~const Combine> const Combine for Point<T> {
+impl<T> const Combine for Point<T> 
+where
+    T: ~const Combine,
+    Point<T::Unsigned>: TryFrom<Point<T::Signed>>,
+    Point<T::Signed>: TryFrom<Point<T::Unsigned>>
+{
     fn add_signed(self, rhs: Self::Signed) -> Self { Self{x_: self.x_.add_signed(rhs.x_), y_: self.y_.add_signed(rhs.y_)} }
     fn add_unsigned(self, rhs: Self::Unsigned) -> Self { Self{x_: self.x_.add_unsigned(rhs.x_), y_: self.y_.add_unsigned(rhs.y_)} }
     fn sub_signed(self, rhs: Self::Signed) -> Self { Self{x_: self.x_.sub_signed(rhs.x_), y_: self.y_.sub_signed(rhs.y_)} }
@@ -185,19 +195,36 @@ pub struct Displacement<T: Transfer<Signed = T>> {
 }
 
 impl<T: Transfer<Signed = T>> Displacement<T> {
-    const fn new(x_: T, y_: T) -> Self { Self{x_, y_} }
+    pub const fn new(x_: T, y_: T) -> Self { Self{x_, y_} }
+    pub const fn x(&self) -> T where T: Copy { self.x_ }
+    pub const fn y(&self) -> T where T: Copy { self.y_ }
+    pub fn x_ref(&self) -> &T { &self.x_ }
+    pub fn y_ref(&self) -> &T { &self.y_ }
+    pub fn x_mut(&mut self) -> &mut T { &mut self.x_ }
+    pub fn y_mut(&mut self) -> &mut T { &mut self.y_ }
+    
+    pub fn as_ref(&self) -> (&T, &T) { (&self.x_, &self.y_) }
+    pub fn as_mut(&mut self) -> (&mut T, &mut T) { (&mut self.x_, &mut self.y_) }
+}
+
+impl<T> Neg for Displacement<T> 
+where
+    T: Transfer<Signed = T> + Neg<Output = T>
+{
+    type Output = Self;
+    fn neg(self) -> Self::Output { Self{x_: -self.x_, y_: -self.y_} }
 }
 
 impl<T: Transfer<Signed = T> + From<i8>> Default for Displacement<T> {
     fn default() -> Self { Self{x_: 0i8.into(), y_: 0i8.into()} }
 }
 
-impl<T: Transfer<Signed = T> + Copy> From<Point<T>> for Displacement<T> {
-    fn from(value: Point<T>) -> Self { Self{x_: value.x_, y_: value.y_} }
+impl<T: Transfer<Signed = T> + Copy> From<(T, T)> for Displacement<T> {
+    fn from((x_, y_): (T, T)) -> Self { Self{x_, y_} }
 }
 
-impl<T: Transfer<Signed = T> + Copy> From<Displacement<T>> for Point<T> {
-    fn from(value: Displacement<T>) -> Self { Self{x_: value.x_, y_: value.y_} }
+impl<T: Transfer<Signed = T> + Copy> From<Displacement<T>> for (T, T) {
+    fn from(value: Displacement<T>) -> Self { (value.x_, value.y_) }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -351,7 +378,9 @@ where
     T: Debug + Combine<
         Unsigned: ZeroablePrimitive + Debug + Combine<Unsigned = T::Unsigned, Signed = T::Signed>, 
         Signed: Debug + Combine<Signed = T::Signed, Unsigned = T::Unsigned>
-    >
+    >,
+    Rect<T::Signed>: TryFrom<Rect<T::Unsigned>>,
+    Rect<T::Unsigned>: TryFrom<Rect<T::Signed>>
 {
     type Signed = Rect<T::Signed>;
     type Unsigned = Rect<T::Unsigned>;
@@ -363,6 +392,34 @@ where
             left_: self.left_.as_unsigned(), top_: self.top_.as_unsigned(),
             width_: self.width_, height_: self.height_
         }
+    }
+}
+
+impl TryFrom<Rect<u16>> for Rect<i16> {
+    type Error = <i16 as TryFrom<u16>>::Error;
+    fn try_from(value: Rect<u16>) -> Result<Self, Self::Error> {
+        let left = i16::try_from(value.left_)?;
+        let top = i16::try_from(value.top_)?;
+        Ok(unsafe{ Self::new_unchecked(
+            left,
+            top,
+            left.saturating_add_unsigned(value.width_.get()),
+            top.saturating_add_unsigned(value.height_.get())
+        )})
+    }
+}
+
+impl TryFrom<Rect<i16>> for Rect<u16> {
+    type Error = <u16 as TryFrom<i16>>::Error;
+    fn try_from(value: Rect<i16>) -> Result<Self, Self::Error> {
+        let right = u16::try_from(value.left_.saturating_add_unsigned(value.width_.get()) - 1)? + 1;
+        let bottom = u16::try_from(value.top_.saturating_add_unsigned(value.height_.get()) - 1)? + 1;
+        Ok(unsafe{ Self::new_unchecked(
+            0u16.saturating_add_signed(value.left()),
+            0u16.saturating_add_signed(value.top()),
+            right,
+            bottom
+        ) })
     }
 }
 
@@ -440,6 +497,18 @@ where
     }
 }
 
+impl<T, I> ShrAssign<I> for Rect<T>
+where 
+    T: Debug + Combine<Unsigned: ZeroablePrimitive>,
+    I: Into<Displacement<T::Signed>>, 
+    Self: ShrAssign<Point<T::Signed>>
+{
+    fn shr_assign(&mut self, rhs: I) {
+        let Displacement{x_, y_} = rhs.into();
+        *self >>= Point::<T::Signed>::new(x_, y_)
+    }
+}
+
 impl<T, U> ShlAssign<Point<U>> for Rect<T> 
 where
     T: Debug + Combine<Unsigned: ZeroablePrimitive>,
@@ -450,6 +519,18 @@ where
         let (width, height) = (self.width_.get(), self.height_.get());
         self.left_ = <T as Combine>::min(self.left_.sub_signed(rhs.x_.as_signed()), self.left_.add_unsigned(width).sub_unsigned(width));
         self.top_ = <T as Combine>::min(self.top_.sub_signed(rhs.y_.as_signed()), self.top_.add_unsigned(height).sub_unsigned(height));
+    }
+}
+
+impl<T, I> ShlAssign<I> for Rect<T>
+where 
+    T: Debug + Combine<Unsigned: ZeroablePrimitive, Signed: Neg<Output = T::Signed>>,
+    I: Into<Displacement<T::Signed>>, 
+    Self: ShlAssign<Point<T::Signed>>
+{
+    fn shl_assign(&mut self, rhs: I) {
+        let Displacement{x_, y_} = -rhs.into();
+        *self <<= Point::<T::Signed>::new(x_, y_)
     }
 }
 
