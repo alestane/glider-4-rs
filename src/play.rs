@@ -1,4 +1,4 @@
-use crate::{Environment, Position, Reference, Displacement, Bounds, Update, Vertical, cart::Transfer};
+use crate::{Environment, Position, Reference, Displacement, Size, Bounds, Update, Vertical, cart::{Rise, Span, Transfer}};
 
 use super::{Input, Outcome, object::{self, Object, Kind}, room::{self, On, Room, Enemy}, Side};
 use std::{collections::{BTreeMap, BTreeSet, HashMap}, iter::from_fn, num::NonZero, ops::Range};
@@ -71,9 +71,8 @@ impl Enemy {
 		(delay - (random() as i32 % (delay + 60) + 30))..delay
     }
 }
-     /* 
 impl Hazard {
-	fn bounds(&self) -> Option<Rect> {
+	fn bounds(&self) -> Option<Bounds> {
 		let (width, height) = unsafe { match self.kind {
             Enemy::Dart => (NonZero::new_unchecked(64), NonZero::new_unchecked(22)),
             Enemy::Copter => (NonZero::new_unchecked(32), NonZero::new_unchecked(32)),
@@ -82,8 +81,8 @@ impl Hazard {
             Enemy::Shock => (NonZero::new_unchecked(32), NonZero::new_unchecked(25)), 
 			_ => (NonZero::new_unchecked(1), NonZero::new_unchecked(1))
 		} };
-		self.position.frame(width, height)
-	}
+        Some(((Size::from((width, height)) / (Span::Center, Rise::Center)) << self.position).as_unsigned())
+	} 
 	fn advance(&mut self) {
         if self.period.next().is_none() {
             self.position += match self.kind {
@@ -103,7 +102,7 @@ impl Hazard {
             }
             
         };
-	}
+	} 
 	fn reset(&mut self) {
 		let delay = self.period.end;
 		match (self.kind, self.kind.start()) {
@@ -116,7 +115,6 @@ impl Hazard {
 		}
 	}
 }
-*/
  
 impl Object {
     fn effect(&self, this: object::Id) -> Option<Hazard> {
@@ -156,15 +154,14 @@ enum State {
 
 const DIE: State = State::FadingOut(0..16);
 const IGNITE: State = State::Burning(0..150);
-/*
 impl State {
     fn outcome(&self, score: u32) -> Option<Outcome> {
         Some(match self {
-			Self::Escaping(to) => Outcome::Leave { score, destination: to.map(|RoomId(id)| (id, Entrance::Air))},
+			Self::Escaping(to) => Outcome::Leave { score, destination: to.map(|room::Id(id)| (id, Entrance::Air))},
             Self::FadingOut(_) | Self::Burning(_) /* | Self::Shredding(_) */ => Outcome::Dead,
-            Self::Ascending(RoomId(room), _) /*| Self::Descending(RoomId(room), _)*/
+            Self::Ascending(room::Id(room), _) /*| Self::Descending(RoomId(room), _)*/
                  => Outcome::Leave{score, destination: Some((*room, Entrance::Down))},
-            Self::Descending(RoomId(room), _)
+            Self::Descending(room::Id(room), _)
                 => Outcome::Leave{score, destination: Some((*room, Entrance::Up))},
             _ => return None
         })
@@ -172,31 +169,30 @@ impl State {
 }
 
 impl std::iter::Iterator for State {
-    type Item = (i16, i16, bool);
+    type Item = (Displacement, bool);
     fn next(&mut self) -> Option<Self::Item> {
         match self {
         	Self::Escaping(..) => None,
             Self::FadingIn(phase)   |
             Self::FadingOut(phase)  |
             Self::Turning(phase)  
-                => phase.next().map(|_| (0, 0, false)),
-            Self::Burning(phase) => {if phase.next().is_none() {eprintln!("burn timeout"); *self = DIE}; Some((1, 3, true)) },
+                => phase.next().map(|_| (Displacement::default(), false)),
+            Self::Burning(phase) => {if phase.next().is_none() {eprintln!("burn timeout"); *self = DIE}; Some(((1, 3).into(), true)) },
             /* Self::Shredding(bounds) => match bounds.height().get() {
                 0..36 => {bounds._bottom += 1; Some((0, (bounds.height().get() % 2) as i16))},
                 _ => {bounds._top += 8; bounds._bottom += 8; (bounds._top > 342).then_some((0, 8))}
             }, */
-            Self::Ascending(_, v) => {*v -= 6; (*v >= 230).then_some((-2, -6, false))}
-            Self::Descending(_, v) => {*v += 6; (*v <= 130).then_some((2, 6, false))},
+            Self::Ascending(_, v) => {*v -= 6; (*v >= 230).then_some(((-2, -6).into(), false))}
+            Self::Descending(_, v) => {*v += 6; (*v <= 130).then_some(((2, 6).into(), false))},
         }
     }
 }
-*/
 #[derive(Debug, Clone)]
 enum Event {
     Control(State),
-    Action(Update, Option<usize>),
+    Action(Update, Option<object::Id>),
 }
-/*
+
 impl From<&State> for u8 {
     fn from(value: &State) -> Self {
         match value {
@@ -224,7 +220,7 @@ impl std::cmp::Ord for State {
         u8::from(other).cmp(&u8::from(self))
     }
 }
-*/
+
 fn id() -> u8 {
     static mut NEXT: NonZero<u8> = unsafe { NonZero::new_unchecked(73) };
     let id = unsafe { NEXT.get() };
@@ -232,10 +228,12 @@ fn id() -> u8 {
     id
 }
 
+const PLAYER_SIZE: Size = unsafe{ Size::new_unchecked(28, 10) };
+
 pub struct Play<'a> {
     room: &'a Room,
     score: u32,
-    items: BTreeSet<usize>,
+    items: BTreeSet<object::Id>,
     facing: Side,
     player: Reference,
     motion: Displacement,
@@ -245,8 +243,8 @@ pub struct Play<'a> {
     hazards: HashMap<u8, Hazard>,
 }
 impl Room {
-    pub fn collider_ids(&self) -> impl Iterator<Item = usize> + '_ {
-        self.objects.iter().enumerate().filter_map(|(id, o)| o.collidable().then_some(id))
+    pub fn collider_ids(&self) -> impl Iterator<Item = object::Id> + '_ {
+        self.objects.iter().enumerate().filter_map(|(id, o)| o.collidable().then_some(id.into()))
     }
     
     fn entrance(&self, from: Entrance) -> i16 {
@@ -283,7 +281,7 @@ impl Room {
         Play {
             room: self,
             score: 0,
-            items: BTreeSet::<usize>::from_iter(self.collider_ids()),
+            items: BTreeSet::from_iter(self.collider_ids()),
             facing,
             player: (x, y).into(),
             motion: Displacement::default(),
@@ -297,31 +295,34 @@ impl Room {
         }
     }
 }
-/*
+
 impl super::object::Object {
-    fn action(&self, mut test: Rect, (h, v): &mut(i16, i16), id: usize, state: &Play) -> Option<Event> {
-        type Kind = ObjectKind;
-        match (self.object_is, self.is_on) {
+    fn action(&self, mut test: Bounds, motion: &mut Displacement, id: object::Id, state: &Play) -> Option<Event> {
+        use object::Kind;
+        let previous = *motion;
+        let (h, v) = motion.as_mut();
+        match (self.kind, state.is_ready(id)) {
             (Kind::CeilingDuct { destination, .. }, false) => Some(Event::Control(State::Escaping(destination))),
             (Kind::CeilingDuct {..}, true) | (Kind::CeilingVent {..}, _) => {if state.on.air {*v = 8}; None},
             (Kind::Fan { faces, .. }, true) => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(0..11))) }
             (kind, _) => match kind {
-                Kind::Table | Kind::Shelf | Kind::Books | Kind::Cabinet | Kind::Obstacle | Kind::Basket | Kind::Macintosh |
-                Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} => Some(Event::Control(DIE)),
-                Kind::Clock(value) | Kind::Bonus(value) => Some(Event::Action(Update::Score(value), Some(id))),
+                Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
+                Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} 
+                    => Some(Event::Control(DIE)),
+                Kind::Clock(value) | Kind::Bonus(value, ..) => Some(Event::Action(Update::Score(value), Some(id))),
                 Kind::FloorVent { .. } | Kind::Candle { .. } => {if state.on.air {*v = -6}; None},
-                Kind::CeilingDuct { destination, .. } => if self.is_on {*v = 8; None} else { Some(Event::Control(State::Escaping(destination))) },
                 Kind::Guitar => Some(Event::Action(Update::Start(Environment::Guitar), None)),
                 Kind::Switch(None) => Some(Event::Action(Update::Lights, None)),
-                Kind::Stair(Vertical::Up, to) => Some(Event::Control(State::Ascending(to, state.player_v))),
-                Kind::Stair(Vertical::Down, to) => Some(Event::Control(State::Descending(to, state.player_v))),
-                Kind::Wall => {
-                    test >>= (*h, *v);
-                    if test.left() < self.bounds.right() && test.right() >= self.bounds.right() {
-                        *h += (self.bounds.right() - test.left()) as i16;
+                Kind::Stair(Vertical::Up, to) => Some(Event::Control(State::Ascending(to, state.player.y()))),
+                Kind::Stair(Vertical::Down, to) => Some(Event::Control(State::Descending(to, state.player.y()))),
+                Kind::Wall{..} => {
+                    test >>= previous;
+                    let bounds = self.active_area();
+                    if test.left() < bounds.right() && test.right() >= bounds.right() {
+                        *h += (bounds.right() - test.left()) as i16;
                     }
-                    if test.right() > self.bounds.left() && test.left() <= self.bounds.left() {
-                        *h -= (test.right() - self.bounds.left()) as i16;
+                    if test.right() > bounds.left() && test.left() <= bounds.left() {
+                        *h -= (test.right() - bounds.left()) as i16;
                     }
                     Some(Event::Action(Update::Bump, None))
                 }
@@ -330,27 +331,22 @@ impl super::object::Object {
         }
     }
 }
-*/
-/*  
+
 const BOUNDS: [Object; 3] = [
     Object{
-        object_is: ObjectKind::Wall,
-        bounds: Rect::new(0, 0, 14, 342),
-        is_on: true,
+        kind: object::Kind::Wall(Side::Left),
+        position: Position::new(14, 342),
     },
     Object{
-        object_is: ObjectKind::Obstacle,
-        bounds: Rect::new(0, room::VERT_FLOOR, 512, 342),
-        is_on: true,
+        kind: object::Kind::Obstacle(unsafe {Size::new_unchecked(17, 512)}),
+        position: Position::new(room::SCREEN_WIDTH / 2, room::VERT_FLOOR + 8),
     },
     Object{
-        object_is: ObjectKind::Wall,
-        bounds: Rect::new(498, 0, 536, 342),
-        is_on: true,
+        kind: object::Kind::Wall(Side::Right),
+        position: Position::new(498, 342),
     },
 ];
-*/
-/*
+
  impl<'a> Play<'a> {
     pub fn frame(&mut self, actions: &[Input]) -> Outcome {
         let signal = self.now.as_ref().map(|s| match s {
@@ -361,8 +357,8 @@ const BOUNDS: [Object; 3] = [
         });
         let control = if let Some(state) = self.now.as_mut() {
             if let Some(motion) = state.next() {
-            	let (h, v, relative) = motion;
-            	let motion = if relative { (self.facing * h, v) } else { (h, v) };
+            	let (motion, relative) = motion;
+            	let motion = if relative { motion * self.facing } else { motion };
                 Some((motion, match state {/* State::Turning(_) | */ State::Burning(..) => true, _ => false}))
             } else {
 				let result = state.outcome(self.score);
@@ -377,10 +373,10 @@ const BOUNDS: [Object; 3] = [
         let (mut motion, collision) = if let Some(o) = control {
             o
         } else {
-            let mut motion = (0, 3);
+            let mut motion = Displacement::new(0, 3);
             for action in actions {
                 match action {
-                    Input::Go(direction) => motion.0 += *direction * MAX_THRUST,
+                    Input::Go(direction) => *motion.x_mut() += *direction * MAX_THRUST,
                     _ => ()
                 };
             }
@@ -388,57 +384,70 @@ const BOUNDS: [Object; 3] = [
         };
         let events = if collision {
             let walls = &BOUNDS[self.room.walls()];
-            let touch = Rect::cropped_on((0u16.saturating_add_signed(self.player_h), 0u16.saturating_add_signed(self.player_v)), 28, 10);
-            for hazard in self.hazards.values_mut() { hazard.advance(); }
-            let actions: Vec<_> = self.active_items().chain(walls).enumerate().filter_map(|(i, o)|
-            	(o.active_area() & touch).and_then(|_| o.action(touch, &mut motion, i, self))
-            ).chain(self.hazards.values().filter_map(|h|
-                h.is_on
-                .then(|| h.bounds())
-                .and_then(|bounds| (bounds & touch).map(|_| Event::Control(match h.kind {Enemy::Flame | Enemy::Shock => IGNITE, _ => DIE})))
-            )).collect();
-            let (events, outcomes): (Vec<_>, Vec<_>) = actions.into_iter().map(|e| {
-                match e {
-                    Event::Action(a, remove) => {
-                        if let Some(ref used) = remove {self.items.remove(used);};
-                        match a {
-                            Update::Lights => self.on.lights = true,
-                            _ => ()
-                        };
-                        (Some(a), None)
-                    },
-                    Event::Control(c) => (None, Some(c)),
-                }
-            }).unzip();
-
-            let events: Vec<_> = signal.into_iter().flatten().chain(events.into_iter().filter_map(|e| e)).collect();
-            self.now = self.now.iter().chain(outcomes.iter().filter_map(|e| e.as_ref())).max().cloned();
-            Some(events)
+            if let Some(touch) = Bounds::try_from(PLAYER_SIZE / (Span::Center, Rise::Center) << self.player).ok() {
+                for hazard in self.hazards.values_mut() { hazard.advance(); }
+                let actions: Vec<_> = self.active_items().chain(walls).enumerate().filter_map(|(i, o)|
+                    (o.active_area() & touch).and_then(|_| o.action(touch, &mut motion, i.into(), self))
+                ).chain(self.hazards.values().filter_map(|h|
+                    h.is_on
+                        .then_some(h)
+                        .and_then(Hazard::bounds)
+                        .and_then(|bounds| (bounds & touch).map(|_| Event::Control(match h.kind {Enemy::Flame | Enemy::Shock => IGNITE, _ => DIE})))
+                )).collect();
+                let (events, outcomes): (Vec<_>, Vec<_>) = actions.into_iter().map(|e| {
+                    match e {
+                        Event::Action(a, remove) => {
+                            if let Some(ref used) = remove {self.items.remove(used);};
+                            match a {
+                                Update::Lights => self.on.lights = true,
+                                _ => ()
+                            };
+                            (Some(a), None)
+                        },
+                        Event::Control(c) => (None, Some(c)),
+                    }
+                }).unzip();
+                let events: Vec<_> = signal.into_iter().flatten().chain(events.into_iter().filter_map(|e| e)).collect();
+                self.now = self.now.iter().chain(outcomes.iter().filter_map(|e| e.as_ref())).max().cloned();
+                Some(events)
+            } else { None }
         } else {
             signal
         }; 
-        self.motion_h = motion.0;
-        self.motion_v = motion.1;
-        self.player_h = self.player_h + motion.0;
-        self.player_v = self.player_v + motion.1;
-        if let Some((RoomId(to), out)) = match self.player_h {..-12 => Some(Side::Left), 489.. => Some(Side::Right), _ => None}.and_then(|s| self.room[s].zip(Some(s))) {
-            return Outcome::Leave{score: self.score, destination: Some((to, Entrance::Flying(-out, self.player_v as u16)))}
+        self.motion = motion;
+        self.player += <(i16, i16)>::from(motion);
+        if let Some((room::Id(to), out)) = match self.player.x() {..-12 => Some(Side::Left), 489.. => Some(Side::Right), _ => None}.and_then(|s| self.room[s].zip(Some(s))) {
+            return Outcome::Leave{score: self.score, destination: Some((to, Entrance::Flying(-out, self.player.y() as u16)))}
         };
         Outcome::Continue(events)
     }
 
+    fn is_ready(&self, o: object::Id) -> bool {
+        self.ready.get(&o).map(|&ready| ready).unwrap_or_else(|| 
+            match self.room[o].kind {
+                Kind::CeilingDuct { ready, .. } |
+                Kind::Fan { ready, .. } |
+                Kind::Grease { ready, .. } |
+                Kind::Outlet { ready, .. } |
+                Kind::Shredder { ready } 
+                    => ready,
+                _ => true,
+            }
+        )
+    }
+/*
     fn award(&mut self, value: u16) {
         self.score += value as u32;
     }
 
     pub fn dark(&self) -> bool { !self.on.lights }
     pub fn cold(&self) -> bool { !self.on.air }
-
+*/ 
     pub fn active_items(&self) -> impl Iterator<Item = &Object> {
         self.items.iter()
-            .map(|&index| &self.room.objects[index] )
+            .map(|&index| &self.room[index] )
     }
-
+/*
     pub fn active_hazards(&self) -> impl Iterator<Item = (u8, Enemy, (i16, i16), bool)> + '_ {
         self.hazards.iter().map(|(&id, Hazard{kind, position, is_on, ..})| (id, *kind, <Point as Into<(i16, i16)>>::into(*position), *is_on))
     }
@@ -459,6 +468,5 @@ const BOUNDS: [Object; 3] = [
         if let Entrance::Spawn(..) = at {
         	self.now = Some(State::FadingIn(0..16));
         }
-    }
+    }*/
 }
-*/
