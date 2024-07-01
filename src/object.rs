@@ -1,3 +1,5 @@
+use cart::Transfer;
+
 use super::{*, cart::{Rise, Span}};
 use std::num::NonZero;
 
@@ -74,12 +76,17 @@ pub enum Kind {
 }
 
 impl Kind {
-    pub(super) const fn anchor(&self) -> (Span, Rise) {
+    pub(super) const fn anchor(&self, ready: bool) -> (Span, Rise) {
         type Is = Kind;
+        match (self, ready) {
+            (Is::CeilingDuct{..}, false) => return (Span::Center, Rise::Top),
+            (Is::CeilingDuct{..}, true) => return (Span::Center, Rise::Bottom),
+            _ => (),
+        };
         match self {
             Is::Table{..} | Is::Shelf {..} |
-            Is::Drip{..} |
-            Is::FloorVent{..}
+            Is::CeilingVent{..} | Is::CeilingDuct{..} | 
+            Is::Drip{..} 
                 => (Span::Center, Rise::Top),
             Is::Exit{..} |
             Is::Painting{..} | Is::Mirror(..) | Is::Window(..) |
@@ -88,13 +95,14 @@ impl Kind {
             Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..)
                 => (Span::Center, Rise::Center),
             Is::Stair(..) |
-            Is::CeilingVent{..} | Is::CeilingDuct{..} | Is::Fan{..} | Is::Candle{..} |
+            Is::Fan{..} | 
+            Is::FloorVent{..} | Is::Candle{..} |
             Is::Grease{..} |
             Is::RubberBands(..) | Is::Clock(..) | Is::Paper(..) | Is::Battery(..) |
             Is::Guitar |
             Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | Is::Ball{..} |
             Is::Books | Is::Basket | Is::Macintosh | Is::Wall(..) 
-                => (Span::Center, Rise::Bottom),
+            => (Span::Center, Rise::Bottom),
         }
     }
 }
@@ -111,22 +119,23 @@ impl Object {
         match self.kind { Kind::Painting | Kind::Outlet { .. } | Kind::Window( .. ) | Kind::Ball{..} => false, _ => true }
     }
  
-    pub fn active_area(&self) -> Bounds {
-        let _position = self.position;
-        match self.kind {
-            // Kind::FloorVent { height } | Kind::Candle {height} => Rect::new_forced(position.x() - 8, position.y() - height, position.x() + 8, position.y()),
-            // Kind::CeilingVent { height } => Rect{top_: bounds.bottom(), bottom_: height, left_: bounds.x() - 8, right_: bounds.x() + 8},
-            // Kind::CeilingDuct { height, .. } => if self.is_on {
-            // 	let middle = bounds.x(); Rect{left_: middle - 8, right_: middle + 8, top_: room::VERT_CEILING, bottom_: height}
-            // } else {
-            // 	Rect{bottom_: bounds.top_ + 8, ..bounds }
-            // },
+    pub fn active_area(&self, ready: bool) -> Option<Bounds> {
+        let position = self.position;
+        let anchor = self.kind.anchor(ready);
+        let size = unsafe{ match self.kind {
+            Kind::FloorVent { height } | Kind::Candle {height} => Size::new(16, height.max(1)),
+            Kind::CeilingVent { height } => Size::new(16, height),
+            Kind::CeilingDuct { height, .. } => if ready {
+                    Size::new(16, height)
+                } else {
+                    const{ Some(Size::new_unchecked(48, 13)) }
+                },
             // Kind::Fan { faces: Side::Right, range } => Rect{left_: bounds.right(), top_: bounds.top() + 10, right_: range, bottom_: bounds.top() + 30},
             // Kind::Fan { faces: Side::Left, range } => Rect{left_: range, top_: bounds.top() + 10, right_: bounds.left(), bottom_: bounds.top() + 30},
-            // Kind::Stair(Vertical::Up, ..) => Rect{left_: bounds.left() + 32, top_: bounds.top(), right_: bounds.right() - 32, bottom_: bounds.top() + 8},
-            // Kind::Stair(Vertical::Down, ..) => Rect{left_: bounds.left() + 32, top_: bounds.bottom() - 8, right_: bounds.right() - 32, bottom_: bounds.bottom()},
-            _ => unsafe { Bounds::clamped_on(self.position.into(), NonZero::new_unchecked(1), NonZero::new_unchecked(1)) }
-        }
+            Kind::Stair(..) => const{ Some(Size::new_unchecked(97, 8)) },
+            _ => None
+        } }?;
+        Some((size / anchor << position).as_unsigned())
     }
 
     pub fn dynamic(&self) -> bool {

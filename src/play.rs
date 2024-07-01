@@ -317,12 +317,13 @@ impl super::object::Object {
                 Kind::Stair(Vertical::Down, to) => Some(Event::Control(State::Descending(to, state.player.y()))),
                 Kind::Wall{..} => {
                     test >>= previous;
-                    let bounds = self.active_area();
-                    if test.left() < bounds.right() && test.right() >= bounds.right() {
-                        *h += (bounds.right() - test.left()) as i16;
-                    }
-                    if test.right() > bounds.left() && test.left() <= bounds.left() {
-                        *h -= (test.right() - bounds.left()) as i16;
+                    if let Some(bounds) = self.active_area(state.is_ready(id)) {
+                        if test.left() < bounds.right() && test.right() >= bounds.right() {
+                            *h += (bounds.right() - test.left()) as i16;
+                        }
+                        if test.right() > bounds.left() && test.left() <= bounds.left() {
+                            *h -= (test.right() - bounds.left()) as i16;
+                        }
                     }
                     Some(Event::Action(Update::Bump, None))
                 }
@@ -387,7 +388,7 @@ const BOUNDS: [Object; 3] = [
             if let Some(touch) = Bounds::try_from(PLAYER_SIZE / (Span::Center, Rise::Center) << self.player).ok() {
                 for hazard in self.hazards.values_mut() { hazard.advance(); }
                 let actions: Vec<_> = self.active_items().chain(walls).enumerate().filter_map(|(i, o)|
-                    (o.active_area() & touch).and_then(|_| o.action(touch, &mut motion, i.into(), self))
+                    (o.active_area(self.is_ready(i.into())) & touch).and_then(|_| o.action(touch, &mut motion, i.into(), self))
                 ).chain(self.hazards.values().filter_map(|h|
                     h.is_on
                         .then_some(h)
