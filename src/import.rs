@@ -4,6 +4,7 @@ use super::{*,
     room::Room, 
     object::Object, 
     house::House,
+    cart::{Rise, Span},
 };
 
 fn string_from_pascal(bytes: &[u8]) -> String {
@@ -270,6 +271,32 @@ mod binary {
     }
 }
 
+impl object::Kind {
+    pub(self) const fn display_anchor(&self) -> (Span, Rise) {
+        type Is = object::Kind;
+        match self {
+            Is::Table{..} | Is::Shelf {..} |
+            Is::Drip{..} |
+            Is::FloorVent{..}
+                => (Span::Center, Rise::Top),
+            Is::Exit{..} |
+            Is::Painting{..} | Is::Mirror(..) | Is::Window(..) |
+            Is::Bonus(..) |
+            Is::Switch(..) | Is::Thermostat |
+            Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..)
+                => (Span::Center, Rise::Center),
+            Is::Stair(..) |
+            Is::CeilingVent{..} | Is::CeilingDuct{..} | Is::Fan{..} | Is::Candle{..} |
+            Is::Grease{..} |
+            Is::RubberBands(..) | Is::Clock(..) | Is::Paper(..) | Is::Battery(..) |
+            Is::Guitar |
+            Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | Is::Ball{..} |
+            Is::Books | Is::Basket | Is::Macintosh | Is::Wall(..) 
+                => (Span::Center, Rise::Bottom),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 enum BadObjectError {
     FaultyDimensions(u16, u16, u16, u16),
@@ -349,7 +376,7 @@ impl TryFrom<binary::Object> for Object {
 
             bad => return Err( BadObjectError::UnknownKind(bad) )
         };
-        Ok(Object{kind, position: bounds * kind.anchor()})
+        Ok(Object{kind, position: bounds * kind.display_anchor()})
         
     }
 
