@@ -87,6 +87,7 @@ impl Index<object::Id> for Room {
     }
 }
 
+#[derive(Debug)]
 pub enum RoomImportError<'a> {
     ShortData(&'a [u8]),
     TranscriptionErr(<Room as TryFrom<(Id, &'a [u8])>>::Error),

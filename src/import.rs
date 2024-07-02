@@ -382,6 +382,8 @@ impl TryFrom<binary::Object> for Object {
 
 }
 
+
+#[derive(Debug)]
 pub enum InvalidRoomError {
     Fail,
 }
