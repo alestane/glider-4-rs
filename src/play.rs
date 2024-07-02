@@ -440,21 +440,22 @@ const BOUNDS: [Object; 3] = [
     fn award(&mut self, value: u16) {
         self.score += value as u32;
     }
+    */ 
 
     pub fn dark(&self) -> bool { !self.on.lights }
     pub fn cold(&self) -> bool { !self.on.air }
-*/ 
+
     pub fn active_items(&self) -> impl Iterator<Item = &Object> {
         self.items.iter()
             .map(|&index| &self.room[index] )
     }
-/*
+
     pub fn active_hazards(&self) -> impl Iterator<Item = (u8, Enemy, (i16, i16), bool)> + '_ {
-        self.hazards.iter().map(|(&id, Hazard{kind, position, is_on, ..})| (id, *kind, <Point as Into<(i16, i16)>>::into(*position), *is_on))
+        self.hazards.iter().map(|(&id, Hazard{kind, position, is_on, ..})| (id, *kind, <(i16, i16)>::from(*position), *is_on))
     }
 
     pub fn player(&self) -> ((i16, i16), Side, bool) {
-        ((self.player_h, self.player_v), self.facing, self.facing * self.motion_h < 0)
+        (self.player.into(), self.facing, self.facing * self.motion.x() < 0)
     }
 
     pub fn reset(&mut self, at: Entrance) {
@@ -462,12 +463,10 @@ const BOUNDS: [Object; 3] = [
         if !matches!(at, Entrance::Air) {
 			self.facing = facing;
         }
-        self.player_h = x;
-        self.player_v = y;
-        self.motion_h = 0;
-        self.motion_v = 0;
+        self.player = Reference::new(x, y);
+        self.motion = Displacement::default();
         if let Entrance::Spawn(..) = at {
         	self.now = Some(State::FadingIn(0..16));
         }
-    }*/
+    }
 }
