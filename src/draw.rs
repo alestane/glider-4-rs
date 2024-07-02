@@ -1,6 +1,6 @@
 use std::{collections::HashMap, num::NonZero, iter::repeat};
 
-use glider::{prelude::Enemy, Object, ObjectKind, Side, Vertical};
+use glider::prelude::*;
 use sdl2::{pixels::{Color, PixelFormatEnum}, rect::{Point, Rect}, render::{BlendMode, Canvas, RenderTarget, Texture}, surface::Surface, video::Window};
 use crate::{room::{SCREEN_HEIGHT, SCREEN_WIDTH, VERT_FLOOR}, space, atlas::{self, Atlas}, resources};
 
@@ -31,27 +31,45 @@ const GRAY_DK   : Color = Color::RGB(0x80, 0x80, 0x80);
 const BLUE      : Color = Color::RGB(0x00, 0x00, 0xFF);
 const GREEN_LT  : Color = Color::RGB(0x1F, 0xB8, 0x14);
 
-fn appearance(kind: &ObjectKind) -> Option<(&'static str, usize)> {
-    Some(match kind {
-        ObjectKind::Clock(_) => ("collectible", atlas::CLOCK),
-        ObjectKind::Battery(..) => ("collectible", atlas::BATTERY),
-        ObjectKind::Paper(..) => ("collectible", atlas::PAPER),
-        ObjectKind::FloorVent { .. } => ("blowers", atlas::UP),
-        ObjectKind::CeilingVent { .. } => ("blowers", atlas::DOWN),
-        ObjectKind::CeilingDuct { .. } => ("blowers", atlas::DUCT),
-        ObjectKind::Candle { .. } => ("blowers", atlas::CANDLE),
-        ObjectKind::Fan { faces: Side::Right, .. } => ("blowers", atlas::FAN_RIGHT),
-        ObjectKind::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT),
-        ObjectKind::Switch(Some(..)) => ("power", atlas::TOGGLE),
-        ObjectKind::Switch(None) => ("power", atlas::SWITCH),
-        ObjectKind::Outlet{..} => ("power", atlas::OUTLET),
-        ObjectKind::Macintosh => ("visual", atlas::COMPUTER),
-        ObjectKind::Books => ("visual", atlas::BOOKS),
-        ObjectKind::Painting => ("visual", atlas::PAINTING),
-        ObjectKind::Guitar => ("visual", atlas::GUITAR),
-        ObjectKind::Stair(direction, ..) => ("stairs", match direction {Vertical::Up => atlas::STAIRS_UP, Vertical::Down => atlas::STAIRS_DOWN}),
-        _what => return None
-    })
+trait Visible {
+    fn draw_to<Display: Scribe>(&self, display: &mut Display);
+}
+
+mod object {
+    type Rect = super::space::Rect;
+    pub type Kind = glider::prelude::object::Kind;
+    use super::{atlas, Side, Vertical};
+
+    pub fn appearance(kind: &Kind) -> Option<(&'static str, usize)> {
+        type Is = Kind;
+        Some(match kind {
+            Is::Clock(_) => ("collectible", atlas::CLOCK),
+            Is::Battery(..) => ("collectible", atlas::BATTERY),
+            Is::Paper(..) => ("collectible", atlas::PAPER),
+            Is::FloorVent { .. } => ("blowers", atlas::UP),
+            Is::CeilingVent { .. } => ("blowers", atlas::DOWN),
+            Is::CeilingDuct { .. } => ("blowers", atlas::DUCT),
+            Is::Candle { .. } => ("blowers", atlas::CANDLE),
+            Is::Fan { faces: Side::Right, .. } => ("blowers", atlas::FAN_RIGHT),
+            Is::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT),
+            Is::Switch(Some(..)) => ("power", atlas::TOGGLE),
+            Is::Switch(None) => ("power", atlas::SWITCH),
+            Is::Outlet{..} => ("power", atlas::OUTLET),
+            Is::Macintosh => ("visual", atlas::COMPUTER),
+            Is::Books => ("visual", atlas::BOOKS),
+            Is::Painting => ("visual", atlas::PAINTING),
+            Is::Guitar => ("visual", atlas::GUITAR),
+            Is::Stair(direction, ..) => ("stairs", match direction {Vertical::Up => atlas::STAIRS_UP, Vertical::Down => atlas::STAIRS_DOWN}),
+            _what => return None
+        })
+    }
+
+    const fn visual_bounds(kind: &Kind) -> Rect {
+        match kind {
+            Kind::Table{width, ..} => Rect::new_signed(width.get() as i32 / -2, 0, (width.get() as i32 + 1) / 2, 5),
+            _ => Rect::default()
+        }
+    }
 }
 
 fn descreen(target: &mut Surface, width: u32) {
@@ -148,7 +166,7 @@ pub trait Scribe {
     fn outline_rect(&mut self, bounds: Rect, fill: impl Into<Color>) -> Result<(), String>;
     fn limn_rect(&mut self, bounds: Rect, fill: impl Into<Color>, hilite: impl Into<Color>) -> Result<(), String>;
     fn sink_rect(&mut self, bounds: Rect, fill: impl Into<Option<Color>>) -> Result<(), String>;
-    fn draw_wall(&mut self, theme: &Texture, tiles: &[u16]);
+    fn draw_wall(&mut self, theme: &Texture, tiles: &[u8]);
     fn draw_table(&mut self, bounds: space::Rect, sprite: (space::Rect, &Texture)) -> Result<(), String>;
     fn draw_shelf(&mut self, bounds: space::Rect, sprite: (space::Rect, &Texture)) -> Result<(), String>;
     fn draw_cabinet(&mut self, bounds: space::Rect) -> Result<(), String>;
@@ -201,7 +219,7 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         ].as_ref())
     }
 
-    fn draw_wall(&mut self, theme: &Texture, tiles: &[u16]) {
+    fn draw_wall(&mut self, theme: &Texture, tiles: &[u8]) {
         const TILE_WIDTH: u32 = SCREEN_WIDTH / 8;
         for (index, &slice) in tiles.iter().enumerate() {
             self.draw(&theme,
@@ -376,27 +394,30 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
     }
 
     fn draw_thing(&mut self, object: &Object, decor: &Atlas) {
+        type Is = object::Kind;
+        let bounds = space::Rect::default();
         match
-            match object.object_is {
-                ObjectKind::Table => {
+            match object.kind {
+                Is::Table{width, height} => {
                     let (frame, pixels) = decor.get("visual");
-                    self.draw_table(object.bounds.into(), (frame[atlas::TABLE], pixels))
+                    let bounds = space::Rect::from((object.position - (width.get() / 2, 0), Size::from((width, height))));
+                    self.draw_table(bounds.into(), (frame[atlas::TABLE], pixels))
                 }
-                ObjectKind::Shelf => {
+                Is::Shelf{width: _, height: _} => {
                     let (frame, pixels) = decor.get("visual");
-                    self.draw_shelf(object.bounds.into(), (frame[atlas::SHELF], pixels))
+                    self.draw_shelf(bounds.into(), (frame[atlas::SHELF], pixels))
                 }
-                ObjectKind::Cabinet => {
+                Is::Cabinet(_size) => {
 //                    let (frame, pixels) = decor.get("visual");
-                    self.draw_cabinet(object.bounds.into())
+                    self.draw_cabinet(bounds.into())
                 }
-                ObjectKind::Mirror => {
-                    self.draw_mirror(object.bounds.into())
+                Is::Mirror(_size) => {
+                    self.draw_mirror(bounds.into())
                 }
-                ObjectKind::Window => {
-                    self.draw_window(object.bounds.into(), object.is_on)
+                Is::Window(_size, ready) => {
+                    self.draw_window(bounds.into(), ready)
                 }
-                ObjectKind::Bonus(..) => Ok(()),
+                Is::Bonus(..) => Ok(()),
                 what => Err(format!("Unimplemented object: {what:?}")),
             } {
                 Err(e) => eprintln!("{e}"),
@@ -410,8 +431,9 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
     }
 
     fn draw_object(&mut self, object: &Object, atlas: &Atlas) {
-        match appearance(&object.object_is) {
-            Some((name, index)) => self.draw_sprite(object.bounds.into(), name, index, atlas),
+        let bounds = space::Rect::default();
+        match object::appearance(&object.kind) {
+            Some((name, index)) => self.draw_sprite(bounds.into(), name, index, atlas),
             None => self.draw_thing(object, atlas),
         }
     }
@@ -434,13 +456,13 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         if play.dark() {
             self.set_draw_color(BLACK);
             self.clear();
-            for item in play.active_items().filter(|&o| matches!(o.object_is, ObjectKind::Switch(None))) {
+            for item in play.active_items().filter(|&o| matches!(o.kind, object::Kind::Switch(None))) {
                 self.draw_object(item, sprites);
             }
         } else {
             self.draw(&backdrop, None, None);
-            for item in play.active_items().filter(|&o| o.object_is == ObjectKind::Mirror) {
-                let bounds: Rect = space::Rect::from(item.bounds).into();
+            for item in play.active_items().filter(|&o| matches!(o.kind, object::Kind::Mirror(..))) {
+                let bounds: Rect = space::Rect::default().into();
                 self.set_clip_rect(Rect::new(bounds.left() + 3, bounds.top() + 3, bounds.width() - 6, bounds.height() - 6));
                 self.draw(pixels, frame, frame.centered_on((player_position.0 as i32 - 16, player_position.1 as i32  - 32)));
             }
