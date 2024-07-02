@@ -297,7 +297,7 @@ impl <T> Rect<T>
 where
     T: Debug + Combine<Unsigned: ZeroablePrimitive>
 {
-    pub(crate) const fn new(left: T, top: T, right: T, bottom: T) -> Option<Self> where T: ~const Combine {
+    pub const fn new(left: T, top: T, right: T, bottom: T) -> Option<Self> where T: ~const Combine {
         let (left_, top_) = (<T as Combine>::min(left, right), <T as Combine>::min(top, bottom));
         let (Some(width_), Some(height_)) = (NonZero::new(right.difference(left)), NonZero::new(bottom.difference(top))) else {
             return None
