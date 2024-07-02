@@ -17,18 +17,19 @@ use std::{
 mod prelude {
     use std::num::NonZero; 
 
-    pub type Rect = super::cart::Rect<u16>;
     pub use super::{
         Input, Outcome, Success, Side, Vertical, Environment, Update, 
-        Room, House, 
+        Bounds, Position, Size,
+        Object, Room, House, 
         room::Enemy,
     };
     pub mod room {
-    	use crate::room::{SCREEN_WIDTH, SCREEN_HEIGHT, VERT_CEILING, VERT_FLOOR};
-        type Id = super::NonZero<u16>;
+    	pub use crate::room::{SCREEN_WIDTH, SCREEN_HEIGHT, VERT_CEILING, VERT_FLOOR};
+        pub type Id = super::NonZero<u16>;
     }
     pub mod object {
-        type Id = super::NonZero<u16>;
+        pub use crate::object::Kind;
+        pub type Id = super::NonZero<u16>;
     }
 } 
 
