@@ -141,3 +141,37 @@ impl From<Rect> for Option<sdl2::rect::Rect> {
         Some(value.into())
     }
 }
+
+use std::ops::{Shl, Shr};
+
+impl Shl<Point> for Rect {
+    type Output = Rect;
+    fn shl(self, Point{x_, y_}: Point) -> Self::Output {
+        match self {
+            Self::Signed(l, t, r, b) => Self::new_signed(l + x_, t + y_, r + x_, b + y_),
+            Self::Unsigned(l, t, r, b) 
+                => Self::new_unsigned(
+                    l.saturating_add_signed(x_), 
+                    t.saturating_add_signed(y_), 
+                    r.saturating_add_signed(x_), 
+                    b.saturating_add_signed(y_)
+                )
+        }
+    }
+}
+
+impl Shr<Point> for Rect {
+    type Output = Rect;
+    fn shr(self, Point{x_, y_}: Point) -> Self::Output {
+        match self {
+            Self::Signed(l, t, r, b) => Self::new_signed(l - x_, t - y_, r - x_, b - y_),
+            Self::Unsigned(l, t, r, b) 
+                => Self::new_unsigned(
+                    l.saturating_add_signed(-x_), 
+                    t.saturating_add_signed(-y_), 
+                    r.saturating_add_signed(-x_), 
+                    b.saturating_add_signed(-y_)
+                )
+        }
+    }
+}
