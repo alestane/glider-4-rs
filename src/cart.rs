@@ -76,6 +76,13 @@ impl<N: Copy> Point<N> {
     pub const fn new(x: N, y: N) -> Self { Self{x_: x, y_: y} }
     pub const fn x(&self) -> N { self.x_ }
     pub const fn y(&self) -> N { self.y_ }
+    pub fn x_ref(&self) -> &N { &self.x_ }
+    pub fn y_ref(&self) -> &N { &self.y_ }
+    pub fn x_mut(&mut self) -> &mut N { &mut self.x_ }
+    pub fn y_mut(&mut self) -> &mut N { &mut self.y_ }
+    
+    pub fn as_ref(&self) -> (&N, &N) { (&self.x_, &self.y_) }
+    pub fn as_mut(&mut self) -> (&mut N, &mut N) { (&mut self.x_, &mut self.y_) }
 }
 
 impl<T> const Transfer for Point<T> 
@@ -248,12 +255,19 @@ impl<T: Transfer<Unsigned = T> + ZeroablePrimitive> Size<T> {
     pub const fn height(&self) -> T { self.height_.get() }
 }
 
+impl<T> Default for Size<T> 
+where
+    T: Transfer<Unsigned = T> + ZeroablePrimitive + From<u8>
+{
+    fn default() -> Self { const{ unsafe{ Size::new_unchecked(1.into(), 1.into()) } } }
+}
+
 impl<T: Transfer<Unsigned = T> + ZeroablePrimitive> From<(NonZero<T>, NonZero<T>)> for Size<T> {
     fn from(value: (NonZero<T>, NonZero<T>)) -> Self { Self{width_: value.0, height_: value.1} }
 }
 
-pub(crate) enum Span {Left = -1, Center = 0, Right = 1}
-pub(crate) enum Rise {Top = -1, Center = 0, Bottom = 1}
+pub enum Span {Left = -1, Center = 0, Right = 1}
+pub enum Rise {Top = -1, Center = 0, Bottom = 1}
 
 #[repr(C)]
 #[derive(Debug)]
@@ -392,6 +406,15 @@ where
             left_: self.left_.as_unsigned(), top_: self.top_.as_unsigned(),
             width_: self.width_, height_: self.height_
         }
+    }
+}
+
+impl<T> From<(Point<T>, Size<T::Unsigned>)> for Rect<T> 
+where
+    T: Debug + Combine<Unsigned: ZeroablePrimitive>
+{
+    fn from((corner, size): (Point<T>, Size<T::Unsigned>)) -> Self {
+        Self{left_: corner.x(), top_: corner.y(), width_: size.width_, height_: size.height_}
     }
 }
 
@@ -549,11 +572,15 @@ impl<T, U> Shl<Point<U>> for Rect<T>
 where
     T: Debug + Combine<Unsigned: ZeroablePrimitive>,
     U: Debug + Combine<Unsigned: ZeroablePrimitive>, 
-    T: Combine<Signed = U::Signed, Unsigned = U::Unsigned>,
-    Self: ShlAssign<Point<U>>
+    Point<U>: Combine, Point<T>: Transfer,
+    T: Combine<Signed = U::Signed, Unsigned = U::Unsigned>
 {
-    type Output = Self;
-    fn shl(mut self, rhs: Point<U>) -> Self::Output { self >>= rhs; self }
+    type Output = Rect<U>;
+    fn shl(self, mut rhs: Point<U>) -> Self::Output { 
+        *rhs.x_mut() = rhs.x().add_signed(self.left().as_signed()); 
+        *rhs.y_mut() = rhs.y().add_signed(self.top().as_signed()); 
+        (rhs, Size::from((self.width_, self.height_))).into() 
+    }
 }
 
 impl<T> Mul<(Span, Rise)> for Rect<T> 
