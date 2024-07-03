@@ -33,8 +33,8 @@ impl From<self::Id> for Option<u16> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Kind {
-    Table{width: NonZero<u16>, height: NonZero<u16>},
-    Shelf{width: NonZero<u16>, height: NonZero<u16>},
+    Table{width: NonZero<u16>},
+    Shelf{width: NonZero<u16>},
     Books,
     Cabinet(Size),
     Exit{to: Option<room::Id>},

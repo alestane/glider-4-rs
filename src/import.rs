@@ -331,9 +331,9 @@ impl TryFrom<binary::Object> for Object {
         use object::Kind;
         let kind = match u16::from_be_bytes(value.object_is) {
              0 => return Err(BadObjectError::NullObject),
-             1 => Kind::Table{width: bounds.width(), height: bounds.height()}, 
+             1 => Kind::Table{width: bounds.width()}, 
              
-             2 => Kind::Shelf{width: bounds.width(), height: bounds.height()},
+             2 => Kind::Shelf{width: bounds.width()},
              3 => Kind::Books, 
              4 => Kind::Cabinet(bounds.size()),
              5 => Kind::Exit{to: Some(amount.into())},
