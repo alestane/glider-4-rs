@@ -31,37 +31,49 @@ const GRAY_DK   : Color = Color::RGB(0x80, 0x80, 0x80);
 const BLUE      : Color = Color::RGB(0x00, 0x00, 0xFF);
 const GREEN_LT  : Color = Color::RGB(0x1F, 0xB8, 0x14);
 
-trait Visible {
+pub trait Visible {
+    fn show<Display: Scribe, I: Into<Option<usize>>>(&self, display: &mut Display, frame: I) {
+        match self.sprite() {
+            Some((name, index)) => display.draw_sprite(space::Rect::default(), name, frame.into().unwrap_or(index)),
+            None => self.draw_to(display),
+        }
+    }
     fn draw_to<Display: Scribe>(&self, display: &mut Display);
+    fn sprite(&self) -> Option<(&str, usize)> { None }
 }
 
 mod object {
     type Rect = super::space::Rect;
     pub type Kind = glider::prelude::object::Kind;
-    use super::{atlas, Side, Vertical};
+    use super::{atlas, Side, Vertical, Visible, Object};
 
-    pub fn appearance(kind: &Kind) -> Option<(&'static str, usize)> {
-        type Is = Kind;
-        Some(match kind {
-            Is::Clock(_) => ("collectible", atlas::CLOCK),
-            Is::Battery(..) => ("collectible", atlas::BATTERY),
-            Is::Paper(..) => ("collectible", atlas::PAPER),
-            Is::FloorVent { .. } => ("blowers", atlas::UP),
-            Is::CeilingVent { .. } => ("blowers", atlas::DOWN),
-            Is::CeilingDuct { .. } => ("blowers", atlas::DUCT),
-            Is::Candle { .. } => ("blowers", atlas::CANDLE),
-            Is::Fan { faces: Side::Right, .. } => ("blowers", atlas::FAN_RIGHT),
-            Is::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT),
-            Is::Switch(Some(..)) => ("power", atlas::TOGGLE),
-            Is::Switch(None) => ("power", atlas::SWITCH),
-            Is::Outlet{..} => ("power", atlas::OUTLET),
-            Is::Macintosh => ("visual", atlas::COMPUTER),
-            Is::Books => ("visual", atlas::BOOKS),
-            Is::Painting => ("visual", atlas::PAINTING),
-            Is::Guitar => ("visual", atlas::GUITAR),
-            Is::Stair(direction, ..) => ("stairs", match direction {Vertical::Up => atlas::STAIRS_UP, Vertical::Down => atlas::STAIRS_DOWN}),
-            _what => return None
-        })
+    impl Visible for Object {
+        fn draw_to<Display: super::Scribe>(&self, display: &mut Display) {
+            
+        }
+        fn sprite(&self) -> Option<(&str, usize)> {
+            type Is = Kind;
+            Some(match self.kind {
+                Is::Clock(_) => ("collectible", atlas::CLOCK),
+                Is::Battery(..) => ("collectible", atlas::BATTERY),
+                Is::Paper(..) => ("collectible", atlas::PAPER),
+                Is::FloorVent { .. } => ("blowers", atlas::UP),
+                Is::CeilingVent { .. } => ("blowers", atlas::DOWN),
+                Is::CeilingDuct { .. } => ("blowers", atlas::DUCT),
+                Is::Candle { .. } => ("blowers", atlas::CANDLE),
+                Is::Fan { faces: Side::Right, .. } => ("blowers", atlas::FAN_RIGHT),
+                Is::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT),
+                Is::Switch(Some(..)) => ("power", atlas::TOGGLE),
+                Is::Switch(None) => ("power", atlas::SWITCH),
+                Is::Outlet{..} => ("power", atlas::OUTLET),
+                Is::Macintosh => ("visual", atlas::COMPUTER),
+                Is::Books => ("visual", atlas::BOOKS),
+                Is::Painting => ("visual", atlas::PAINTING),
+                Is::Guitar => ("visual", atlas::GUITAR),
+                Is::Stair(direction, ..) => ("stairs", match direction {Vertical::Up => atlas::STAIRS_UP, Vertical::Down => atlas::STAIRS_DOWN}),
+                _what => return None
+            })
+        }
     }
 
     const fn visual_bounds(kind: &Kind) -> Rect {
@@ -161,6 +173,11 @@ impl Illuminator for Canvas<Window> {
     }
 }
 
+impl<T> Illuminator for (&mut Canvas<Window>, T) {
+    type Builder = <Canvas<Window> as Illuminator>::Builder;
+    fn get_builder(&self) -> Self::Builder { self.0.get_builder() }
+}
+
 pub trait Scribe {
     fn draw(&mut self, pixels: &Texture, source: impl Into<Option<Rect>>, dest: impl Into<Option<Rect>>);
     fn outline_rect(&mut self, bounds: Rect, fill: impl Into<Color>) -> Result<(), String>;
@@ -173,28 +190,29 @@ pub trait Scribe {
     fn draw_mirror(&mut self, bounds: space::Rect) -> Result<(), String>;
     fn draw_window(&mut self, bounds: space::Rect, is_open: bool) -> Result<(), String>;
     fn draw_thing(&mut self, object: &Object, sprites: &Atlas);
-    fn draw_object(&mut self, object: &Object, atlas: &atlas::Atlas);
-    fn draw_sprite(&mut self, bounds: space::Rect, name: &str, index: usize, sprites: &Atlas);
+    fn draw_sprite(&mut self, bounds: space::Rect, name: &str, index: usize);
     fn draw_room(&mut self, play: &glider::Play, times: &mut HashMap<u8, Box<dyn Iterator<Item = usize>>>, sprites: &Atlas, backdrop: &Texture);
 }
 
-impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = sdl2::render::TextureCreator<T>> {
+impl<R:RenderTarget, T> Scribe for (&mut Canvas<R>, &Atlas<'_>) where Self: Illuminator<Builder = sdl2::render::TextureCreator<T>> {
     fn draw(&mut self, pixels: &Texture, source: impl Into<Option<Rect>>, dest: impl Into<Option<Rect>>) {
-        self.copy(pixels, source, dest)
+        self.0.copy(pixels, source, dest)
             .expect("failed to draw to canvas");
     }
 
     fn outline_rect(&mut self, bounds: Rect, fill: impl Into<Color>) -> Result<(), String> {
-        self.set_draw_color(fill.into());
-        self.fill_rect(bounds)?;
-        self.set_draw_color(BLACK);
-        self.draw_rect(bounds)
+        let display = &mut *self.0;
+        display.set_draw_color(fill.into());
+        display.fill_rect(bounds)?;
+        display.set_draw_color(BLACK);
+        display.draw_rect(bounds)
     }
 
     fn limn_rect(&mut self, bounds: Rect, fill: impl Into<Color>, hilite: impl Into<Color>) -> Result<(), String> {
         self.outline_rect(bounds, fill)?;
-        self.set_draw_color(hilite);
-        self.draw_lines([
+        let display = &mut *self.0;
+        display.set_draw_color(hilite);
+        display.draw_lines([
             Point::new(bounds.left() + 1, bounds.top() +1),
             Point::new(bounds.right() - 2, bounds.top() + 1),
             Point::new(bounds.right() - 2, bounds.bottom() - 2),
@@ -205,14 +223,15 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         if let Some(fill) = fill.into() {
             self.outline_rect(bounds, fill)?;
         }
-        self.set_draw_color(BROWN_LT);
-        self.draw_lines([
+        let display = &mut *self.0;
+        display.set_draw_color(BROWN_LT);
+        display.draw_lines([
             Point::new(bounds.left() - 1, bounds.top()),
             Point::new(bounds.left() - 1, bounds.bottom()),
             Point::new(bounds.right() - 1, bounds.bottom()),
         ].as_ref())?;
-        self.set_draw_color(GRAY_DK);
-        self.draw_lines([
+        display.set_draw_color(GRAY_DK);
+        display.draw_lines([
             Point::new(bounds.left(), bounds.top() - 1),
             Point::new(bounds.right(), bounds.top() - 1),
             Point::new(bounds.right(), bounds.bottom()),
@@ -231,97 +250,99 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
 
     fn draw_table(&mut self, bounds: space::Rect, sprite: (space::Rect, &Texture)) -> Result<(), String> {
         let bounds = sdl2::rect::Rect::from(bounds);
-        self.set_draw_color(BROWN);
-        self.fill_rect(bounds)?;
-        self.set_draw_color(BLACK);
-        self.draw_rect(bounds)?;
-        self.draw_line((bounds.left() + 1, bounds.bottom() - 2), (bounds.right() - 1, bounds.bottom() - 2))?;
-        self.set_draw_color(BROWN_LT);
-        self.draw_line((bounds.left() + 1, bounds.top() + 1), (bounds.right() - 2, bounds.top() + 1))?;
         let builder = self.get_builder();
+        let display = &mut *self.0;
+        display.set_draw_color(BROWN);
+        display.fill_rect(bounds)?;
+        display.set_draw_color(BLACK);
+        display.draw_rect(bounds)?;
+        display.draw_line((bounds.left() + 1, bounds.bottom() - 2), (bounds.right() - 1, bounds.bottom() - 2))?;
+        display.set_draw_color(BROWN_LT);
+        display.draw_line((bounds.left() + 1, bounds.top() + 1), (bounds.right() - 2, bounds.top() + 1))?;
         //let shadow = unsafe { table_shadow(NonZero::new_unchecked(bounds.width()), NonZero::new_unchecked(bounds.height())) }
         //    .map_err(|e| e.to_string())?;
         let drop = -(bounds.top().saturating_sub_unsigned(VERT_FLOOR));
         let shadow_bounds = { let mut r = bounds; r.offset(drop / -5, drop); r};
         let shadow = unsafe { table_shadow(NonZero::new_unchecked(bounds.width()), NonZero::new_unchecked(bounds.height()))}.or_else(|e| Err(e.to_string()))?;
-        self.copy(&shadow.as_texture(&builder).map_err(|e| e.to_string())?, None, shadow_bounds)?;
+        display.copy(&shadow.as_texture(&builder).map_err(|e| e.to_string())?, None, shadow_bounds)?;
 
         let center = bounds.center().x();
         let post = Rect::new(center - 2, bounds.bottom(), 5, (VERT_FLOOR - 2).saturating_add_signed(-bounds.bottom()));
-        self.set_draw_color(BLACK);
-        self.fill_rect(post)?;
-        self.set_draw_color(WHITE);
-        self.draw_line((center + 1, post.top()), (center + 1, post.bottom()))?;
-        self.set_draw_color(BROWN_LT);
-        self.draw_line((center, post.top()), (center, post.bottom()))?;
+        display.set_draw_color(BLACK);
+        display.fill_rect(post)?;
+        display.set_draw_color(WHITE);
+        display.draw_line((center + 1, post.top()), (center + 1, post.bottom()))?;
+        display.set_draw_color(BROWN_LT);
+        display.draw_line((center, post.top()), (center, post.bottom()))?;
 
         let frame: Rect = sprite.0.into();
-        self.copy(sprite.1, frame, frame.centered_on((center, VERT_FLOOR as i32 + 4)))?;
+        display.copy(sprite.1, frame, frame.centered_on((center, VERT_FLOOR as i32 + 4)))?;
 
         Ok(())
     }
 
     fn draw_shelf(&mut self, bounds: space::Rect, sprite: (space::Rect, &Texture)) -> Result<(), String> {
         let bounds: Rect = bounds.into();
+        let builder = self.get_builder();
+        let display = &mut *self.0;
 
         let shadow = unsafe { shelf_shadow(NonZero::new_unchecked(bounds.width()), NonZero::new_unchecked(bounds.height()))}.or_else(|e| Err(e.to_string()))?;
-        let builder = self.get_builder();
-        self.copy(&shadow.as_texture(&builder).map_err(|e| e.to_string())?, None, Rect::new(bounds.left() - 15, bounds.top(), bounds.width() + 15, bounds.height() + 15))?;
+        display.copy(&shadow.as_texture(&builder).map_err(|e| e.to_string())?, None, Rect::new(bounds.left() - 15, bounds.top(), bounds.width() + 15, bounds.height() + 15))?;
 
-        self.set_draw_color(BROWN_LT);
-        self.fill_rect(bounds)?;
-        self.draw_line((bounds.left() + 1, bounds.bottom() - 2), (bounds.right() - 1, bounds.bottom() -2))?;
-        self.set_draw_color(WHITE);
-        self.draw_line((bounds.left() + 1, bounds.top() + 1), (bounds.right() - 2, bounds.top() + 1))?;
+        display.set_draw_color(BROWN_LT);
+        display.fill_rect(bounds)?;
+        display.draw_line((bounds.left() + 1, bounds.bottom() - 2), (bounds.right() - 1, bounds.bottom() -2))?;
+        display.set_draw_color(WHITE);
+        display.draw_line((bounds.left() + 1, bounds.top() + 1), (bounds.right() - 2, bounds.top() + 1))?;
 
         let source: Rect = sprite.0.into();
-        self.copy(sprite.1, source, Rect::new(bounds.left() + 15, bounds.bottom() - 2, source.width(), source.height()))?;
-        self.copy(sprite.1, source, Rect::new(bounds.right() - (15 + source.width() as i32), bounds.bottom() - 2, source.width(), source.height()))?;
+        display.copy(sprite.1, source, Rect::new(bounds.left() + 15, bounds.bottom() - 2, source.width(), source.height()))?;
+        display.copy(sprite.1, source, Rect::new(bounds.right() - (15 + source.width() as i32), bounds.bottom() - 2, source.width(), source.height()))?;
 
         Ok(())
     }
 
     fn draw_cabinet(&mut self, bounds: space::Rect) -> Result<(), String> {
         let bounds: Rect = bounds.into();
+        let builder = self.get_builder();
+        let display = &mut *self.0;
         let off = if bounds.bottom() > 280 {
             {
                 let bounds = Rect::new(bounds.left(), bounds.top(), bounds.width(), bounds.height() - 5);
-                self.set_draw_color(BROWN);
-                self.set_blend_mode(BlendMode::Blend);
-                self.fill_rect(bounds)?;
-                self.set_draw_color(BLACK);
-                self.draw_rect(bounds)?;
+                display.set_draw_color(BROWN);
+                display.set_blend_mode(BlendMode::Blend);
+                display.fill_rect(bounds)?;
+                display.set_draw_color(BLACK);
+                display.draw_rect(bounds)?;
             }
             {
                 let bounds = Rect::new(bounds.left() + 2, bounds.bottom() - 5, bounds.width() - 5, 5);
-                self.fill_rect(bounds)?;
-                self.draw_rect(bounds)?;
+                display.fill_rect(bounds)?;
+                display.draw_rect(bounds)?;
             }
             {
                 let bounds = Rect::new(bounds.left() - 2, bounds.top(), bounds.width() + 4, 7);
-                self.set_draw_color(BROWN_LT);
-                self.fill_rect(bounds)?;
-                self.set_draw_color(BLACK);
-                self.draw_rect(bounds)?;
-                self.draw_line((bounds.left() + 2, bounds.bottom()), (bounds.right() - 3, bounds.bottom()))?;
+                display.set_draw_color(BROWN_LT);
+                display.fill_rect(bounds)?;
+                display.set_draw_color(BLACK);
+                display.draw_rect(bounds)?;
+                display.draw_line((bounds.left() + 2, bounds.bottom()), (bounds.right() - 3, bounds.bottom()))?;
             }
             {
                 let shadow = cabinet_shadow(unsafe{NonZero::new_unchecked(bounds.height())}).map_err(|e| e.to_string())?;
-                let builder = self.get_builder();
-                self.copy(&shadow.as_texture(&builder).map_err(|e| e.to_string())?, None, Rect::new(bounds.left() - 15, bounds.top(), 15, bounds.height()))?;
+                display.copy(&shadow.as_texture(&builder).map_err(|e| e.to_string())?, None, Rect::new(bounds.left() - 15, bounds.top(), 15, bounds.height()))?;
             }
             5u32
         } else {
             {
                 let shadow = unsafe { shelf_shadow(NonZero::new_unchecked(bounds.width()), NonZero::new_unchecked(bounds.height())) }.map_err(|e| e.to_string())?;
-                let builder = self.get_builder();
-                self.copy(&shadow.as_texture(&builder).map_err(|e| e.to_string())?, None, Rect::new(bounds.left() - 15, bounds.top(), bounds.width() + 15, bounds.height() + 15))?;
+                display.copy(&shadow.as_texture(&builder).map_err(|e| e.to_string())?, None, Rect::new(bounds.left() - 15, bounds.top(), bounds.width() + 15, bounds.height() + 15))?;
             }
             {
-                self.set_draw_color(BROWN);
-                self.fill_rect(bounds)?;
-                self.set_draw_color(BLACK);
-                self.draw_rect(bounds)?;
+                display.set_draw_color(BROWN);
+                display.fill_rect(bounds)?;
+                display.set_draw_color(BLACK);
+                display.draw_rect(bounds)?;
             }
             0
         };
@@ -329,10 +350,10 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         let width = (bounds.width() - (panels + 1) * 5) / panels;
         for h in 0..panels {
             let bounds = Rect::new(bounds.left() + 8 + h as i32 * (width as i32 + 5), bounds.top() + 8i32.saturating_add_unsigned(off), width - 7, bounds.height() - (17 + off * 2));
-            self.set_draw_color(BROWN_LT);
-            self.draw_lines([Point::new(bounds.left(), bounds.top()), Point::new(bounds.left(), bounds.bottom()), Point::new(bounds.right(), bounds.bottom())].as_ref())?;
-            self.set_draw_color(BLACK);
-            self.draw_lines([Point::new(bounds.right(), bounds.bottom()), Point::new(bounds.right(), bounds.top()), Point::new(bounds.left(), bounds.top())].as_ref())?;
+            display.set_draw_color(BROWN_LT);
+            display.draw_lines([Point::new(bounds.left(), bounds.top()), Point::new(bounds.left(), bounds.bottom()), Point::new(bounds.right(), bounds.bottom())].as_ref())?;
+            display.set_draw_color(BLACK);
+            display.draw_lines([Point::new(bounds.right(), bounds.bottom()), Point::new(bounds.right(), bounds.top()), Point::new(bounds.left(), bounds.top())].as_ref())?;
         }
         Ok(())
     }
@@ -340,13 +361,14 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
     fn draw_mirror(&mut self, bounds: space::Rect) -> Result<(), String> {
         let outer: Rect = bounds.into();
         let inner = Rect::new(outer.left() + 3, outer.top() + 3, outer.width() - 6, outer.height() - 6);
-        self.set_draw_color(BROWN);
-        self.fill_rect(outer)?;
-        self.set_draw_color(WHITE);
-        self.fill_rect(inner)?;
-        self.set_draw_color(BLACK);
-        self.draw_rect(outer)?;
-        self.draw_rect(inner)?;
+        let display = &mut *self.0;
+        display.set_draw_color(BROWN);
+        display.fill_rect(outer)?;
+        display.set_draw_color(WHITE);
+        display.fill_rect(inner)?;
+        display.set_draw_color(BLACK);
+        display.draw_rect(outer)?;
+        display.draw_rect(inner)?;
         Ok(())
     }
 
@@ -379,8 +401,8 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         let height = casing.height() / 2 + 2;
         {
             let pane = Rect::new(casing.left(), casing.top() + height as i32, casing.width(), casing.height() - height);
-            self.set_draw_color(BLACK);
-            self.fill_rect(pane)?;
+            self.0.set_draw_color(BLACK);
+            self.0.fill_rect(pane)?;
             let pane = Rect::new(casing.left(), casing.top() + if is_open {26} else {height as i32 - 4}, casing.width(), height);
             self.outline_rect(pane, BROWN)?;
             let pane = Rect::new(pane.left() + 6, pane.top() + 6, pane.width() - 12, pane.height() - 12);
@@ -425,17 +447,9 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
         }
     }
 
-    fn draw_sprite(&mut self, bounds: space::Rect, name: &str, index: usize, sprites: &Atlas) {
-        let (wedge, tex) = sprites.get(name);
+    fn draw_sprite(&mut self, bounds: space::Rect, name: &str, index: usize) {
+        let (wedge, tex) = self.1.get(name);
         self.draw(tex, wedge[index], bounds);
-    }
-
-    fn draw_object(&mut self, object: &Object, atlas: &Atlas) {
-        let bounds = space::Rect::default();
-        match object::appearance(&object.kind) {
-            Some((name, index)) => self.draw_sprite(bounds.into(), name, index, atlas),
-            None => self.draw_thing(object, atlas),
-        }
     }
 
     fn draw_room(&mut self, play: &glider::Play, times: &mut Animations, sprites: &Atlas, backdrop: &Texture) {
@@ -447,28 +461,29 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
             index
         }
 
-        self.set_draw_color(Color::RGB(0, 0, 0));
-        self.clear();
+        let display = &mut *self.0;
+        display.set_draw_color(Color::RGB(0, 0, 0));
+        display.clear();
         let (mut player_position, facing, backward) = play.player();
         let (slides, pixels) = sprites.get(match facing {Side::Left => "glider.left", Side::Right => "glider.right"} );
         let frame: sdl2::rect::Rect = slides[advance(times, 0).unwrap_or(if backward {atlas::TIPPED} else {atlas::LEVEL})].into();
         if frame.height() > 20 {player_position.1 -= frame.height() as i16 / 2 - 10};
         if play.dark() {
-            self.set_draw_color(BLACK);
-            self.clear();
+            display.set_draw_color(BLACK);
+            display.clear();
             for item in play.active_items().filter(|&o| matches!(o.kind, object::Kind::Switch(None))) {
-                self.draw_object(item, sprites);
+                item.show(self, 0);
             }
         } else {
             self.draw(&backdrop, None, None);
             for item in play.active_items().filter(|&o| matches!(o.kind, object::Kind::Mirror(..))) {
                 let bounds: Rect = space::Rect::default().into();
-                self.set_clip_rect(Rect::new(bounds.left() + 3, bounds.top() + 3, bounds.width() - 6, bounds.height() - 6));
+                self.0.set_clip_rect(Rect::new(bounds.left() + 3, bounds.top() + 3, bounds.width() - 6, bounds.height() - 6));
                 self.draw(pixels, frame, frame.centered_on((player_position.0 as i32 - 16, player_position.1 as i32  - 32)));
             }
-            self.set_clip_rect(None);
+            self.0.set_clip_rect(None);
             for item in play.active_items().filter(|&o| o.dynamic()) {
-                self.draw_object(item, sprites);
+                item.show(self, 0);
             }
         }
         for (id, hazard, position, is_on) in play.active_hazards() {
@@ -492,11 +507,11 @@ impl<R:RenderTarget, T> Scribe for Canvas<R> where Self: Illuminator<Builder = s
 				times.insert(id, Box::new(c));
 				frame
 			};
-			self.draw_sprite(Rect::from_center(position, width, height).into(), group, frame, sprites);
+			self.draw_sprite(Rect::from_center(position, width, height).into(), group, frame);
         }
         self.draw(pixels, frame, frame.centered_on((player_position.0 as i32, player_position.1 as i32)));
         let frame: sdl2::rect::Rect = slides[atlas::SHADOW].into();
         self.draw(pixels, frame, frame.centered_on((player_position.0 as i32, (VERT_FLOOR + frame.height() / 2) as i32)));
-        self.present();
+        self.0.present();
     }
 }

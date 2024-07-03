@@ -1,6 +1,6 @@
 use sdl2::{keyboard::{KeyboardState, Scancode}, render::Texture};
 use glider::{Entrance, Input, Outcome, Room, Side, Update};
-use crate::{atlas, draw::{Animations, Frame, Scribe}, room::{SCREEN_HEIGHT, SCREEN_WIDTH}};
+use crate::{atlas, draw::{Animations, Frame, Scribe, Visible}, room::{SCREEN_HEIGHT, SCREEN_WIDTH}};
 use std::{time::{Duration, Instant}, num::NonZero};
 
 const FADE_IN: &[usize] = &[3, 4, 3, 4, 5, 4, 5, 6, 5, 6, 7, 6, 7, 8, 7, 8, 9];
@@ -17,12 +17,14 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room
     let mut backdrop = loader.create_texture_target(None, SCREEN_WIDTH, SCREEN_HEIGHT).expect("Failed to create backdrop texture");
     let _ = display.with_texture_canvas(&mut backdrop,
         |display| {
+            let mut display = (display, &context.sprites);
             display.draw_wall(&theme, &room.1.tile_order);
             for object in room.1.objects.iter().filter(|&object| !object.dynamic()) {
-                display.draw_object(object, &context.sprites);
+                object.show(&mut display, None);
             }
         }
     );
+    let mut display = (display, &context.sprites);
     let mut play = room.1.start(target);
     if let Entrance::Spawn(..) = target { play.reset(Entrance::default()) };
     let mut animation = HashMap::<u8, Box<dyn Iterator<Item = usize>>>::new();
