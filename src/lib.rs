@@ -19,7 +19,7 @@ mod prelude {
 
     pub use super::{
         Input, Outcome, Success, Side, Vertical, Environment, Update, 
-        Bounds, Position, Size,
+        Bounds, Position, Size, cart::Span, cart::Rise,
         Object, Room, House, 
         room::Enemy,
     };
@@ -40,6 +40,7 @@ pub type Position = cart::Point<u16>;
 pub type Reference = cart::Point<i16>;
 pub type Displacement = cart::Displacement<i16>;
 pub type Size = cart::Size<u16>;
+pub use cart::Transfer;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Input {
