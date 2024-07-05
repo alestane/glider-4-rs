@@ -4,6 +4,8 @@ use std::{
     ops::{Add, AddAssign, Sub, SubAssign, DivAssign, Div, MulAssign, Mul, ShlAssign, Shl, ShrAssign, Shr, Neg, BitAnd}
 };
 
+use crate::Side;
+
 #[const_trait]
 pub trait Transfer: Sized {
     type Unsigned: ~const Transfer<Unsigned = Self::Unsigned, Signed = Self::Signed> + TryFrom<Self::Signed>;
@@ -266,8 +268,34 @@ impl<T: Transfer<Unsigned = T> + ZeroablePrimitive> From<(NonZero<T>, NonZero<T>
     fn from(value: (NonZero<T>, NonZero<T>)) -> Self { Self{width_: value.0, height_: value.1} }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum Span {Left = -1, Center = 0, Right = 1}
+#[derive(Debug, Clone, Copy)]
 pub enum Rise {Top = -1, Center = 0, Bottom = 1}
+
+impl From<Side> for Span {
+    fn from(value: Side) -> Self { match value {Side::Left => Span::Left, Side::Right => Span::Right} }
+}
+
+impl Neg for Span {
+    type Output = Self;
+    fn neg(self) -> Self::Output { match self {Self::Left => Self::Right, Self::Right => Self::Left, _ => Self::Center} }
+}
+
+impl Neg for &Span {
+    type Output = Span;
+    fn neg(self) -> Self::Output { -*self }
+}
+
+impl Neg for Rise {
+    type Output = Self;
+    fn neg(self) -> Self::Output { match self {Self::Top => Self::Bottom, Self::Bottom => Self::Top, _ => Rise::Center} }
+}
+
+impl Neg for &Rise {
+    type Output = Rise;
+    fn neg(self) -> Self::Output { -*self }
+}
 
 #[repr(C)]
 #[derive(Debug)]
@@ -457,7 +485,11 @@ where
         let right_ = <T as Combine>::min(self.right(), rhs.right());
         let top_ = <T as Combine>::max(self.top_, rhs.top_);
         let bottom_ = <T as Combine>::min(self.bottom(), rhs.bottom());
-        ((left_ < right_) & (top_ < bottom_)).then_some(unsafe{Self{left_, top_, width_: NonZero::new_unchecked(right_.difference(left_)), height_: NonZero::new_unchecked(bottom_.difference(top_))}})
+        if (left_ < right_) & (top_ < bottom_) {
+            Some(unsafe{Self{left_, top_, width_: NonZero::new_unchecked(right_.difference(left_)), height_: NonZero::new_unchecked(bottom_.difference(top_))}})
+        } else {
+            None
+        }
     }
 }
 
