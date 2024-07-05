@@ -1,6 +1,6 @@
-use std::{collections::HashMap, num::NonZero, iter::repeat};
+use std::{collections::HashMap, iter::repeat, num::NonZero};
 
-use glider::{prelude::*, Reference};
+use glider::{prelude::*, Bounds, Reference};
 use sdl2::{pixels::{Color, PixelFormatEnum}, rect::{Point, Rect}, render::{BlendMode, Canvas, RenderTarget, Texture, TextureCreator}, surface::Surface, video::Window};
 use crate::{room::{SCREEN_HEIGHT, SCREEN_WIDTH, VERT_FLOOR}, space, atlas::{self, Atlas}, resources};
 
@@ -32,34 +32,22 @@ const BLUE      : Color = Color::RGB(0x00, 0x00, 0xFF);
 const GREEN_LT  : Color = Color::RGB(0x1F, 0xB8, 0x14);
 
 pub trait Visible {
-    fn show<Display: Scribe<Builder = TextureCreator<T>>, T, I: Into<Option<usize>>>(&self, display: &mut Display, frame: I) {
-        match self.sprite() {
-            Some((name, index)) => display.sprite(self.bounds(), name, frame.into().unwrap_or(index)),
-            None => self.draw_to(display),
-        }
-    }
-    fn draw_to<Display: Scribe<Builder = TextureCreator<T>>, T>(&self, display: &mut Display);
-    fn bounds(&self) -> space::Rect;
-    fn sprite(&self) -> Option<(&str, usize)> { None }
+    fn show<Display: Scribe>(&self, display: &mut Display);
 }
 
 mod object {
     type Frame = space::Rect;
     pub type Kind = glider::prelude::object::Kind;
-    use glider::Transfer;
     use super::*;
 
     impl Visible for Object {
-        fn draw_to<Display, T>(&self, display: &mut Display) 
-        where
-            Display: Scribe<Builder = TextureCreator<T>>
-        {
+        fn show<Display: Scribe>(&self, display: &mut Display) {
             type Is = object::Kind;
             match
                 match self.kind {
                     Is::Table{width} => {
-                        let bounds = space::Rect::from((self.position - (width.get() / 2, 0), Size::from((width, const{ NonZero::new(9).unwrap() }))));
-                        draw_table(display, bounds.into())
+                        let bounds = Size::from((width, const{ NonZero::new(9).unwrap() })) / (Span::Center, Rise::Top) << self.position;
+                        draw_table(display, Frame::from(bounds).into())
                     }
                     Is::Shelf{width} => {
                         draw_shelf(display, space::Rect::from((self.position - (width.get() / 2, 0), Size::from((width, const{ NonZero::new(5).unwrap() })))))
@@ -80,49 +68,46 @@ mod object {
                         draw_window(display, Frame::new_unsigned(left, top, left + width, top + height), ready)
                     }
                     Is::Bonus(..) => Ok(()),
-                    what => Err(format!("Unimplemented object: {what:?}")),
+                    _ => return (None, self).show(display),
                 } {
                     Err(e) => eprintln!("{e}"),
                     _ => ()
             }
         }
+    
+    }
 
-        fn sprite(&self) -> Option<(&str, usize)> {
+    impl<I: Into<Option<usize>> + Copy> Visible for (I, &Object) {
+        fn show<Display: Scribe>(&self, display: &mut Display) {
             type Is = Kind;
-            Some(match self.kind {
-                Is::Clock(_) => ("collectible", atlas::CLOCK),
-                Is::Battery(..) => ("collectible", atlas::BATTERY),
-                Is::Paper(..) => ("collectible", atlas::PAPER),
-                Is::FloorVent { .. } => ("blowers", atlas::UP),
-                Is::CeilingVent { .. } => ("blowers", atlas::DOWN),
-                Is::CeilingDuct { .. } => ("blowers", atlas::DUCT),
-                Is::Candle { .. } => ("blowers", atlas::CANDLE),
-                Is::Fan { faces: Side::Right, .. } => ("blowers", atlas::FAN_RIGHT),
-                Is::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT),
-                Is::Switch(Some(..)) => ("power", atlas::TOGGLE),
-                Is::Switch(None) => ("power", atlas::SWITCH),
-                Is::Outlet{..} => ("power", atlas::OUTLET),
-                Is::Macintosh => ("visual", atlas::COMPUTER),
-                Is::Books => ("visual", atlas::BOOKS),
-                Is::Painting => ("visual", atlas::PAINTING),
-                Is::Guitar => ("visual", atlas::GUITAR),
-                Is::Stair(direction, ..) => ("stairs", match direction {Vertical::Up => atlas::STAIRS_UP, Vertical::Down => atlas::STAIRS_DOWN}),
-                _what => return None
-            })
-        }
-        fn bounds(&self) -> space::Rect {
-            let size =  match self.kind {Kind::Table{width, ..} | Kind::Shelf{width, ..} => Size::from((width, const{NonZero::new(9).unwrap() })),
-            _ => Size::default()
+            let (category, frame, anchor) = match self.1.kind {
+                Is::Table{..} | Is::Shelf{..} | Is::Cabinet(..) | Is::Window{..} | Is::Mirror(..) 
+                    => return self.1.show(display),
+                Is::Clock(_) => ("collectible", atlas::CLOCK, BOTTOM),
+                // Is::Battery(..) => ("collectible", atlas::BATTERY),
+                // Is::Paper(..) => ("collectible", atlas::PAPER),
+                // Is::FloorVent { .. } => ("blowers", atlas::UP),
+                // Is::CeilingVent { .. } => ("blowers", atlas::DOWN),
+                // Is::CeilingDuct { .. } => ("blowers", atlas::DUCT),
+                // Is::Candle { .. } => ("blowers", atlas::CANDLE),
+                // Is::Fan { faces: Side::Right, .. } => ("blowers", atlas::FAN_RIGHT),
+                // Is::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT),
+                // Is::Switch(Some(..)) => ("power", atlas::TOGGLE),
+                // Is::Switch(None) => ("power", atlas::SWITCH),
+                // Is::Outlet{..} => ("power", atlas::OUTLET),
+                // Is::Macintosh => ("visual", atlas::COMPUTER),
+                // Is::Books => ("visual", atlas::BOOKS),
+                // Is::Painting => ("visual", atlas::PAINTING),
+                // Is::Guitar => ("visual", atlas::GUITAR),
+                // Is::Stair(direction, ..) => ("stairs", match direction {Vertical::Up => atlas::STAIRS_UP, Vertical::Down => atlas::STAIRS_DOWN}),
+                #[cfg(debug_assertions)]
+                _ => return eprintln!("Object {:?} not implemented yet.", self.1)
             };
-            let anchor = (Span::Center, Rise::Center);
-            space::Rect::from(size / anchor << self.position.as_unsigned())
+            display.sprite(space::Point::from(self.1.position).into(), anchor, category, self.0.into().unwrap_or(frame));
         }
     }
 
-    fn draw_table<Display, T>(display: &mut Display, bounds: Rect) -> Result<(), String> 
-    where
-        Display: Scribe + Illuminator<Builder = TextureCreator<T>>
-    {
+    fn draw_table<Display: Scribe>(display: &mut Display, bounds: Rect) -> Result<(), String> {
         let bounds = sdl2::rect::Rect::from(bounds);
         let builder = display.get_builder();
         display.outline_rect(bounds, BROWN);
@@ -132,7 +117,7 @@ mod object {
         let shadow_bounds = { let mut r = bounds; r.offset(drop / -5, drop); r};
         let shadow = unsafe { shadow::table(NonZero::new_unchecked(bounds.width()), NonZero::new_unchecked(bounds.height()))}.or_else(|e| Err(e.to_string()))?;
         display.draw(
-            &shadow.as_texture(&builder).map_err(|e| e.to_string())?, 
+            &builder.load(&shadow)?, 
             None, 
             shadow_bounds
         );
@@ -143,23 +128,18 @@ mod object {
         display.pen(WHITE, &[(center + 1, post.top()), (center + 1, post.bottom())])?;
         display.pen(BROWN_LT, &[(center, post.top()), (center, post.bottom())])?;
 
-        let base_size = unsafe{ Size::from((NonZero::new_unchecked(64), NonZero::new_unchecked(22))) };
-        let frame = base_size / (Span::Center, Rise::Center) << Position::from((center as u16, VERT_FLOOR as u16 + 4));
-        display.sprite(frame.into(), "visual", atlas::TABLE);
+        display.sprite((center as i16, VERT_FLOOR as i16 + 4), CENTER, "visual", atlas::TABLE);
 
         Ok(())
     }
 
-    fn draw_shelf<Display, T>(display: &mut Display, bounds: space::Rect) -> Result<(), String> 
-    where
-        Display: Scribe + Illuminator<Builder = TextureCreator<T>>
-    {
+    fn draw_shelf<Display: Scribe>(display: &mut Display, bounds: Frame) -> Result<(), String> {
         let bounds: Rect = bounds.into();
         let builder = display.get_builder();
 
         let shadow = unsafe { shadow::shelf(NonZero::new_unchecked(bounds.width()), NonZero::new_unchecked(bounds.height()))}.or_else(|e| Err(e.to_string()))?;
         display.draw(
-            &shadow.as_texture(&builder).map_err(|e| e.to_string())?,
+            &builder.load(&shadow)?,
             None, 
             Rect::new(bounds.left() - 15, bounds.top(), bounds.width() + 15, bounds.height() + 15)
         );
@@ -167,17 +147,13 @@ mod object {
         display.fill(BROWN_LT, bounds)?;
         display.pen(BROWN_LT, &[(bounds.left() + 1, bounds.bottom() - 2), (bounds.right() - 1, bounds.bottom() -2)])?;
         display.pen(WHITE, &[(bounds.left() + 1, bounds.top() + 1), (bounds.right() - 2, bounds.top() + 1)])?;
-
-        const FRAME: space::Rect = space::Rect::new_signed(-8, -2, 8, 27);
         
-        display.sprite(FRAME << space::Point::from((bounds.left() + 23, bounds.bottom())), "visual", atlas::SHELF);
-        display.sprite(FRAME << space::Point::from((bounds.right() - 23, bounds.bottom())), "visual", atlas::SHELF);
+        display.sprite((bounds.left() as i16 + 23, bounds.bottom() as i16 - 2), TOP, "visual", atlas::SHELF);
+        display.sprite((bounds.right() as i16 - 23, bounds.bottom() as i16 - 2), TOP, "visual", atlas::SHELF);
         Ok(())
     }
 
-    fn draw_cabinet<Display, T>(display: &mut Display, bounds: Frame) -> Result<(), String> 
-    where
-        Display: Scribe + Illuminator<Builder = TextureCreator<T>>
+    fn draw_cabinet<Display: Scribe>(display: &mut Display, bounds: Frame) -> Result<(), String> 
     {
         let bounds: Rect = bounds.into();
         let builder = display.get_builder();
@@ -198,7 +174,7 @@ mod object {
             {
                 let shadow = shadow::cabinet(unsafe{ NonZero::new_unchecked(bounds.height()) }).map_err(|e| e.to_string())?;
                 display.draw(
-                    &shadow.as_texture(&builder).map_err(|e| e.to_string())?, 
+                    &builder.load(&shadow)?, 
                     None, 
                     Rect::new(bounds.left() - 15, bounds.top(), 15, bounds.height())
                 );
@@ -208,7 +184,7 @@ mod object {
             {
                 let shadow = unsafe { shadow::shelf(NonZero::new_unchecked(bounds.width()), NonZero::new_unchecked(bounds.height())) }.map_err(|e| e.to_string())?;
                 display.draw(
-                    &shadow.as_texture(&builder).map_err(|e| e.to_string())?, 
+                    &builder.load(&shadow)?, 
                     None, 
                     Rect::new(bounds.left() - 15, bounds.top(), bounds.width() + 15, bounds.height() + 15)
                 );
@@ -232,10 +208,7 @@ mod object {
         Ok(())
     }
 
-    fn draw_mirror<Display, T>(display: &mut Display, bounds: Frame) -> Result<(), String> 
-    where
-        Display: Scribe + Illuminator<Builder = TextureCreator<T>>
-    {
+    fn draw_mirror<Display: Scribe>(display: &mut Display, bounds: Frame) -> Result<(), String> {
         let outer: Rect = bounds.into();
         let inner = Rect::new(outer.left() + 3, outer.top() + 3, outer.width() - 6, outer.height() - 6);
         display.outline_rect(outer, BROWN)?;
@@ -243,16 +216,13 @@ mod object {
         Ok(())
     }
 
-    fn draw_window<Display, T>(display: &mut Display, bounds: Frame, is_open: bool) -> Result<(), String> 
-    where
-        Display: Scribe + Illuminator<Builder = TextureCreator<T>>
-    {
+    fn draw_window<Display: Scribe>(display: &mut Display, bounds: Frame, is_open: bool) -> Result<(), String> {
         let bounds: Rect = bounds.into();
         {
             let shadow = unsafe { shadow::window(NonZero::new_unchecked(bounds.width()), NonZero::new_unchecked(bounds.height())) }
                 .map_err(|e| e.to_string())?;
             let builder = display.get_builder();
-            display.draw(&shadow.as_texture(&builder).map_err(|e| e.to_string())?, None, Rect::new(bounds.left() - 10, bounds.top(), bounds.width() + 10, bounds.height() + 5));
+            display.draw(&builder.load(&shadow)?, None, Rect::new(bounds.left() - 10, bounds.top(), bounds.width() + 10, bounds.height() + 5));
         }
         display.limn_rect(bounds, BROWN, BROWN_LT)?;
         display.limn_rect(Rect::new(bounds.left() - 4, bounds.top(), bounds.width() + 8, 6), BROWN, BROWN_LT)?;
@@ -371,19 +341,59 @@ mod object {
 }    
 
 mod hazard {
-    
+    type Frame = space::Rect;
+    use super::*;
+
+    impl Visible for (usize, Enemy, (i16, i16)) {
+        fn show<Display: Scribe>(&self, display: &mut Display) {
+            let name = match self.1 {
+                Enemy::Dart => "dart",
+            	Enemy::Balloon => "balloon",
+                Enemy::Copter => "copter",
+                Enemy::Flame => "fire",
+                Enemy::Shock => "power", 
+                _ => return
+            };
+            display.sprite(self.2, CENTER, name, self.0)
+        }
+    }
+}
+
+mod room {
+    use super::*; 
+
+    impl Visible for (&Texture<'_>, [u8; 8]) {
+        fn show<Display: Scribe>(&self, display: &mut Display) {
+            const TILE_WIDTH: u32 = SCREEN_WIDTH / 8;
+            let &(theme, tiles) = self;
+            for (index, &slice) in tiles.iter().enumerate() {
+                display.draw(&theme,
+                    Rect::new(slice as i32 * TILE_WIDTH as i32, 0, TILE_WIDTH, SCREEN_HEIGHT),
+                    Rect::new(index as i32 * TILE_WIDTH as i32, 0, TILE_WIDTH, SCREEN_HEIGHT)
+                );
+            }
+        }
+    }
+}
+
+trait Texturizer {
+    fn load(&self, source: &Surface) -> Result<Texture, String>;
+}
+
+impl<T> Texturizer for TextureCreator<T> {
+    fn load(&self, source: &Surface) -> Result<Texture, String> {
+        source.as_texture(self).map_err(|e| e.to_string())
+    }
 }
 
 trait Illuminator {
-    type Builder;
+    type Builder: Texturizer;
     fn get_builder(&self) -> Self::Builder;
 }
 
 impl Illuminator for Canvas<Window> {
-    type Builder = sdl2::render::TextureCreator<sdl2::video::WindowContext>;
-    fn get_builder(&self) -> Self::Builder {
-        self.texture_creator()
-    }
+    type Builder = TextureCreator<sdl2::video::WindowContext>;
+    fn get_builder(&self) -> Self::Builder { self.texture_creator() }
 }
 
 impl<T> Illuminator for (&mut Canvas<Window>, T) {
@@ -398,8 +408,8 @@ pub trait Scribe : Illuminator {
     fn outline_rect(&mut self, bounds: Rect, fill: impl Into<Color>) -> Result<(), String>;
     fn limn_rect(&mut self, bounds: Rect, fill: impl Into<Color>, hilite: impl Into<Color>) -> Result<(), String>;
     fn sink_rect(&mut self, bounds: Rect, fill: impl Into<Option<Color>>) -> Result<(), String>;
-    fn draw_wall(&mut self, theme: &Texture, tiles: &[u8]);
-    fn sprite(&mut self, bounds: space::Rect, name: &str, index: usize);
+    fn show<V: Visible>(&mut self, item: &V);
+    fn sprite(&mut self, position: (i16, i16), anchor: Anchor, name: &str, index: usize);
     fn draw_room(&mut self, play: &glider::Play, times: &mut HashMap<u8, Box<dyn Iterator<Item = usize>>>, sprites: &Atlas, backdrop: &Texture);
 }
 
@@ -460,18 +470,13 @@ impl<R:RenderTarget, T> Scribe for (&mut Canvas<R>, &Atlas<'_>) where Self: Illu
         ].as_ref())
     }
 
-    fn draw_wall(&mut self, theme: &Texture, tiles: &[u8]) {
-        const TILE_WIDTH: u32 = SCREEN_WIDTH / 8;
-        for (index, &slice) in tiles.iter().enumerate() {
-            self.draw(&theme,
-                Rect::new(slice as i32 * TILE_WIDTH as i32, 0, TILE_WIDTH, SCREEN_HEIGHT),
-                Rect::new(index as i32 * TILE_WIDTH as i32, 0, TILE_WIDTH, SCREEN_HEIGHT)
-            );
-        }
-    }
+    fn show<V: Visible>(&mut self, item: &V) { item.show(self) }
 
-    fn sprite(&mut self, bounds: space::Rect, name: &str, index: usize) {
+    fn sprite(&mut self, position: (i16, i16), anchor: Anchor, name: &str, index: usize) {
         let (wedge, tex) = self.1.get(name);
+        let frame = wedge[index];
+        let size = Bounds::from(frame).size();
+        let bounds = space::Rect::from(size / anchor << Reference::from(position));
         self.draw(tex, wedge[index], bounds);
     }
 
@@ -495,7 +500,7 @@ impl<R:RenderTarget, T> Scribe for (&mut Canvas<R>, &Atlas<'_>) where Self: Illu
             display.set_draw_color(BLACK);
             display.clear();
             for item in play.active_items().filter(|&o| matches!(o.kind, object::Kind::Switch(None))) {
-                item.show(self, 0);
+                (None, item).show(self);
             }
         } else {
             self.draw(&backdrop, None, None);
@@ -506,7 +511,7 @@ impl<R:RenderTarget, T> Scribe for (&mut Canvas<R>, &Atlas<'_>) where Self: Illu
             }
             self.0.set_clip_rect(None);
             for item in play.active_items().filter(|&o| o.dynamic()) {
-                item.show(self, 0);
+                (None, item).show(self);
             }
         }
         for (id, hazard, position, is_on) in play.active_hazards() {
@@ -530,7 +535,7 @@ impl<R:RenderTarget, T> Scribe for (&mut Canvas<R>, &Atlas<'_>) where Self: Illu
 				times.insert(id, Box::new(c));
 				frame
 			};
-			self.sprite(Rect::from_center(position, width, height).into(), group, frame);
+			self.sprite(position.into(), CENTER, group, frame);
         }
         self.draw(pixels, frame, frame.centered_on((player_position.0 as i32, player_position.1 as i32)));
         let frame: sdl2::rect::Rect = slides[atlas::SHADOW].into();
