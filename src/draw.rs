@@ -410,7 +410,7 @@ pub trait Scribe : Illuminator {
     fn sink_rect(&mut self, bounds: Rect, fill: impl Into<Option<Color>>) -> Result<(), String>;
     fn show<V: Visible>(&mut self, item: &V);
     fn sprite(&mut self, position: (i16, i16), anchor: Anchor, name: &str, index: usize);
-    fn draw_room(&mut self, play: &glider::Play, times: &mut HashMap<u8, Box<dyn Iterator<Item = usize>>>, sprites: &Atlas, backdrop: &Texture);
+    fn draw_room(&mut self, play: &glider::Play, times: &mut HashMap<u8, Box<dyn Iterator<Item = usize>>>, backdrop: &Texture);
 }
 
 impl<R:RenderTarget, T> Scribe for (&mut Canvas<R>, &Atlas<'_>) where Self: Illuminator<Builder = sdl2::render::TextureCreator<T>> {
@@ -480,7 +480,7 @@ impl<R:RenderTarget, T> Scribe for (&mut Canvas<R>, &Atlas<'_>) where Self: Illu
         self.draw(tex, wedge[index], bounds);
     }
 
-    fn draw_room(&mut self, play: &glider::Play, times: &mut Animations, sprites: &Atlas, backdrop: &Texture) {
+    fn draw_room(&mut self, play: &glider::Play, times: &mut Animations, backdrop: &Texture) {
         fn advance(lookup: &mut Animations, id: u8) -> Option<usize> {
             let index = lookup.get_mut(&id).and_then(|a| a.next());
             if index.is_none() {
@@ -489,7 +489,7 @@ impl<R:RenderTarget, T> Scribe for (&mut Canvas<R>, &Atlas<'_>) where Self: Illu
             index
         }
 
-        let display = &mut *self.0;
+        let (display, sprites) = (&mut *self.0, self.1);
         display.set_draw_color(Color::RGB(0, 0, 0));
         display.clear();
         let (mut player_position, facing, backward) = play.player();

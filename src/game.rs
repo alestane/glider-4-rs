@@ -54,7 +54,7 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room
                         _ => ()
                     }
                 }
-                display.draw_room(&play, &mut animation, &context.sprites, &backdrop)
+                display.draw_room(&play, &mut animation, &backdrop)
             },
             Outcome::Dead => {
             	animation.remove(&0);
