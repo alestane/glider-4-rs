@@ -19,7 +19,7 @@ mod prelude {
 
     pub use super::{
         Input, Outcome, Success, Side, Vertical, Environment, Update, 
-        Bounds, Position, Size, cart::Span, cart::Rise,
+        Bounds, Position, Size, cart::{Span, Rise, Rect, Point},
         Object, Room, House, 
         room::Enemy,
     };
@@ -31,6 +31,17 @@ mod prelude {
         pub use crate::object::Kind;
         pub type Id = super::NonZero<u16>;
     }
+
+    pub type Anchor = (Span, Rise);
+    pub const TOPLEFT:      Anchor = (Span::Left, Rise::Top);
+    pub const TOP:          Anchor = (Span::Center, Rise::Top);
+    pub const TOPRIGHT:     Anchor = (Span::Right, Rise::Top);
+    pub const LEFT:         Anchor = (Span::Left, Rise::Center);
+    pub const CENTER:       Anchor = (Span::Center, Rise::Center);
+    pub const RIGHT:        Anchor = (Span::Right, Rise::Center);
+    pub const BOTTOMLEFT:   Anchor = (Span::Left, Rise::Bottom);
+    pub const BOTTOM:       Anchor = (Span::Center, Rise::Bottom);
+    pub const BOTTOMRIGHT:  Anchor = (Span::Right, Rise::Bottom);
 } 
 
 mod cart;
