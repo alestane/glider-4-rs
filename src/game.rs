@@ -73,7 +73,7 @@ use std::collections::HashMap;
 
 pub fn play(context: &mut crate::App, pics: &HashMap<usize, Texture>, house: &[Room]) -> Result<(u32, NonZero<u16>), ()> {
     let mut score = 0u32;
-    let mut room_index = unsafe{ NonZero::new_unchecked(13u16) };
+    let mut room_index = const{ NonZero::new(3u16).unwrap() };
     let mut arrive = Entrance::default();
     while let (points, Some((next, at))) = {
     	let room = &house[room_index.get() as usize - 1];
