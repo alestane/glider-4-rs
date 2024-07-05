@@ -76,16 +76,11 @@ pub enum Kind {
 }
 
 impl Kind {
-    pub(super) const fn anchor(&self, ready: bool) -> (Span, Rise) {
+    pub(super) const fn anchor(&self) -> (Span, Rise) {
         type Is = Kind;
-        match (self, ready) {
-            (Is::CeilingDuct{..}, false) => return (Span::Center, Rise::Top),
-            (Is::CeilingDuct{..}, true) => return (Span::Center, Rise::Bottom),
-            _ => (),
-        };
         match self {
             Is::Table{..} | Is::Shelf {..} |
-            Is::CeilingVent{..} | Is::CeilingDuct{..} | 
+            Is::CeilingVent{..} | Is::CeilingDuct{ready: false, ..} | 
             Is::Drip{..} 
                 => (Span::Center, Rise::Top),
             Is::Exit{..} |
@@ -101,8 +96,10 @@ impl Kind {
             Is::RubberBands(..) | Is::Clock(..) | Is::Paper(..) | Is::Battery(..) |
             Is::Guitar |
             Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | Is::Ball{..} |
-            Is::Books | Is::Basket | Is::Macintosh | Is::Wall(..) 
-            => (Span::Center, Rise::Bottom),
+            Is::Books | Is::Basket | Is::Macintosh | 
+            Is::CeilingDuct {ready: true, ..}
+                => (Span::Center, Rise::Bottom),
+            Is::Wall(side) => ((-side).into(), Rise::Bottom)
         }
     }
 }
@@ -121,18 +118,24 @@ impl Object {
  
     pub fn active_area(&self, ready: bool) -> Option<Bounds> {
         let position = self.position;
-        let anchor = self.kind.anchor(ready);
+        let anchor = self.kind.anchor();
         let size = unsafe{ match self.kind {
             Kind::FloorVent { height } | Kind::Candle {height} => Size::new(16, height.max(1)),
             Kind::CeilingVent { height } => Size::new(16, height),
-            Kind::CeilingDuct { height, .. } => if ready {
-                    Size::new(16, height)
+            Kind::CeilingDuct { height, .. } => return Some((if ready {
+                    Size::new(16, height).unwrap() / (Span::Center, Rise::Bottom)
                 } else {
-                    const{ Some(Size::new_unchecked(48, 13)) }
-                },
+                    (const{ Size::new_unchecked(48, 13) }) / (Span::Center, Rise::Top) 
+                } << position).as_unsigned()),
             // Kind::Fan { faces: Side::Right, range } => Rect{left_: bounds.right(), top_: bounds.top() + 10, right_: range, bottom_: bounds.top() + 30},
             // Kind::Fan { faces: Side::Left, range } => Rect{left_: range, top_: bounds.top() + 10, right_: bounds.left(), bottom_: bounds.top() + 30},
             Kind::Stair(..) => const{ Some(Size::new_unchecked(97, 8)) },
+            Kind::Wall(..) => const{ Size::new(14, 342) },
+            Kind::Obstacle(size) => Some(size),
+            Kind::Table{width} => Some(Size::from((width, const{ NonZero::new_unchecked(9) }))),
+            Kind::Macintosh => const{ Size::new(45, 58) },
+            Kind::Clock(..) => const{ Size::new(32, 29) },
+            #[cfg(debug_assertions)]
             _ => None
         } }?;
         Some((size / anchor << position).as_unsigned())
