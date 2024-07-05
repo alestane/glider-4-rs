@@ -317,7 +317,7 @@ impl super::object::Object {
                 Kind::Stair(Vertical::Down, to) => Some(Event::Control(State::Descending(to, state.player.y()))),
                 Kind::Wall{..} => {
                     test >>= previous;
-                    if let Some(bounds) = self.active_area(state.is_ready(id)) {
+                    if let Some(bounds) = self.active_area(true) {
                         if test.left() < bounds.right() && test.right() >= bounds.right() {
                             *h += (bounds.right() - test.left()) as i16;
                         }
@@ -339,7 +339,7 @@ const BOUNDS: [Object; 3] = [
         position: Position::new(14, 342),
     },
     Object{
-        kind: object::Kind::Obstacle(unsafe {Size::new_unchecked(17, 512)}),
+        kind: object::Kind::Obstacle(unsafe {Size::new_unchecked(512, 17)}),
         position: Position::new(room::SCREEN_WIDTH / 2, room::VERT_FLOOR + 8),
     },
     Object{
@@ -385,10 +385,13 @@ const BOUNDS: [Object; 3] = [
         };
         let events = if collision {
             let walls = &BOUNDS[self.room.walls()];
-            if let Some(touch) = Bounds::try_from(PLAYER_SIZE / (Span::Center, Rise::Center) << self.player).ok() {
+            if let Ok(touch) = Bounds::try_from(PLAYER_SIZE / (Span::Center, Rise::Center) << self.player) {
                 for hazard in self.hazards.values_mut() { hazard.advance(); }
                 let actions: Vec<_> = self.active_items().chain(walls).enumerate().filter_map(|(i, o)|
-                    (o.active_area(self.is_ready(i.into())) & touch).and_then(|_| o.action(touch, &mut motion, i.into(), self))
+                    {
+                        let i = i.into();
+                        (o.active_area(self.is_ready(i)) & touch).and_then(|_| o.action(touch, &mut motion, i, self))
+                    }
                 ).chain(self.hazards.values().filter_map(|h|
                     h.is_on
                         .then_some(h)
@@ -425,14 +428,16 @@ const BOUNDS: [Object; 3] = [
 
     fn is_ready(&self, o: object::Id) -> bool {
         self.ready.get(&o).map(|&ready| ready).unwrap_or_else(|| 
-            match self.room[o].kind {
-                Kind::CeilingDuct { ready, .. } |
-                Kind::Fan { ready, .. } |
-                Kind::Grease { ready, .. } |
-                Kind::Outlet { ready, .. } |
-                Kind::Shredder { ready } 
-                    => ready,
-                _ => true,
+            if o.get() as usize >= self.room.len() { true } else {
+                match self.room[o].kind {
+                    Kind::CeilingDuct { ready, .. } |
+                    Kind::Fan { ready, .. } |
+                    Kind::Grease { ready, .. } |
+                    Kind::Outlet { ready, .. } |
+                    Kind::Shredder { ready } 
+                        => ready,
+                    _ => true,
+                }
             }
         )
     }
