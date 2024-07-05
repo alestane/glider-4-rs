@@ -114,6 +114,8 @@ impl Room {
 
         step(self.left_open)..=(2 - step(self.right_open))
     }
+
+    pub fn len(&self) -> usize { self.objects.len() }
     
     pub fn theme_index(&self) -> u16 { self.back_pict_id }
 }
