@@ -136,6 +136,11 @@ impl Neg for Side {
     }
 }
 
+impl Neg for &Side {
+    type Output = Side;
+    fn neg(self) -> Self::Output { -*self }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Vertical {
     Down, Up,
