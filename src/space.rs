@@ -82,6 +82,12 @@ impl From<glider::Bounds> for Rect {
     }
 }
 
+impl From<glider::prelude::Rect<i16>> for Rect {
+    fn from(value: glider::prelude::Rect<i16>) -> Self {
+        Self::new_signed(value.left() as i32, value.top() as i32, value.right() as i32, value.bottom() as i32)
+    }
+}
+
 impl From<sdl2::rect::Rect> for Rect {
     fn from(value: sdl2::rect::Rect) -> Self {
         let (left, top, width, height) = value.into();
