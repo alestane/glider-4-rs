@@ -110,7 +110,7 @@ mod object {
                 Is::Battery(..) => ("collectible", atlas::BATTERY, BOTTOM),
                 Is::Paper(..) => ("collectible", atlas::PAPER, BOTTOM),
                 Is::FloorVent { .. } => ("blowers", atlas::UP, TOP),
-                // Is::CeilingVent { .. } => ("blowers", atlas::DOWN),
+                Is::CeilingVent { .. } => ("blowers", atlas::DOWN, BOTTOM),
                 Is::CeilingDuct { .. } => ("blowers", atlas::DUCT, BOTTOM),
                 Is::Candle { .. } => ("blowers", atlas::CANDLE, BOTTOM),
                 // Is::Fan { faces: Side::Right, .. } => ("blowers", atlas::FAN_RIGHT),
@@ -124,7 +124,7 @@ mod object {
                 Is::Guitar => ("visual", atlas::GUITAR, BOTTOM),
                 // Is::Stair(direction, ..) => ("stairs", match direction {Vertical::Up => atlas::STAIRS_UP, Vertical::Down => atlas::STAIRS_DOWN}),
                 #[cfg(debug_assertions)]
-                _ => return eprintln!("Object {:?} not implemented yet.", self.1)
+                _ => return eprintln!("Object {:?} NOT IMPLEMENTED yet.", self.1)
             };
             display.sprite(space::Point::from(self.1.position).into(), anchor, category, self.0.into().unwrap_or(frame));
         }
