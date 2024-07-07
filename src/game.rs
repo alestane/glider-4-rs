@@ -55,10 +55,9 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room
                         _ => ()
                     }
                 }
-                display
-                    .show(&sdl2::pixels::Color::RGB(0, 0, 0))
-                    .show(&backdrop)
-                    .show(&(&play, &animation));
+                display.show(&sdl2::pixels::Color::RGB(0, 0, 0));
+                if !play.dark() {display.show(&backdrop);}
+                display.show(&(&play, &animation));
             },
             Outcome::Dead => {
             	animation.borrow_mut().remove(&0);
