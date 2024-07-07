@@ -90,8 +90,9 @@ impl Kind {
             Is::Switch(..) | Is::Thermostat |
             Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..)
                 => (Span::Center, Rise::Center),
+            Is::Fan{faces, ..} 
+                => (Span::from(-faces), Rise::Center),
             Is::Stair(Vertical::Down, ..) |
-            Is::Fan{..} | 
             Is::FloorVent{..} | Is::Candle{..} |
             Is::Grease{..} |
             Is::RubberBands(..) | Is::Clock(..) | Is::Paper(..) | Is::Battery(..) |
@@ -119,17 +120,23 @@ impl Object {
  
     pub fn active_area(&self, ready: bool) -> Option<Bounds> {
         let mut position = self.position;
-        let anchor = self.kind.anchor();
+        let mut anchor = self.kind.anchor();
         let size = unsafe{ match self.kind {
             Kind::FloorVent { height } | Kind::Candle {height} => Size::new(16, height.max(1)),
             Kind::CeilingVent { height } => Size::new(16, height),
-            Kind::CeilingDuct { height, .. } => return Some((if ready {
-                    Size::new(16, height).unwrap() / (Span::Center, Rise::Bottom)
-                } else {
-                    (const{ Size::new_unchecked(48, 13) }) / (Span::Center, Rise::Top) 
-                } << position).as_unsigned()),
-            // Kind::Fan { faces: Side::Right, range } => Rect{left_: bounds.right(), top_: bounds.top() + 10, right_: range, bottom_: bounds.top() + 30},
-            // Kind::Fan { faces: Side::Left, range } => Rect{left_: range, top_: bounds.top() + 10, right_: bounds.left(), bottom_: bounds.top() + 30},
+            Kind::CeilingDuct { height, .. } if ready => Size::new(16, height),
+            Kind::CeilingDuct{..} => {
+                anchor.1 = Rise::Bottom;
+                const{ Size::new(48, 13) }
+            }
+            Kind::Fan{faces, range, ..} if ready => {
+                match faces {
+                    Side::Left => *position.x_mut() -= 17,
+                    Side::Right => *position.x_mut() += 17,
+                };
+                *position.y_mut() -= 44;
+                Size::new(range, 20)
+            }
             Kind::Stair(v, ..) => { if v == Vertical::Up {*position.y_mut() -= 254}; const{ Size::new(97, 8)}},
             Kind::Wall(..) => const{ Size::new(14, 342) },
             Kind::Obstacle(size) => Some(size),
@@ -142,7 +149,7 @@ impl Object {
             Kind::Battery(..) => const{ Size::new(16, 26) },
             Kind::Paper(..) => const{ Size::new(48, 21) },
             Kind::Switch(..) => const{ Size::new(18, 26) },
-            #[cfg(debug_assertions)]
+            Kind::Grease { .. } if ready => const{ Size::new(32, 29) }
             _ => None
         } }?;
         Some((size / anchor << position).as_unsigned())
