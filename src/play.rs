@@ -301,36 +301,34 @@ impl super::object::Object {
         use object::Kind;
         let previous = *motion;
         let (h, v) = motion.as_mut();
-        match (self.kind, state.is_ready(id)) {
-            (Kind::CeilingDuct { destination, .. }, false) => Some(Event::Control(State::Escaping(destination))),
-            (Kind::CeilingDuct {..}, true) | (Kind::CeilingVent {..}, _) => {if state.on.air {*v = 8}; None},
-            (Kind::Fan { faces, .. }, true) => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(0..11))) }
-            (kind, _) => match kind {
-                Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
-                Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} 
-                    => Some(Event::Control(DIE)),
-                Kind::Clock(value) | Kind::Bonus(value, ..) => Some(Event::Action(Update::Score(value), Some(id))),
-                Kind::Battery(value) => Some(Event::Action(Update::Energy(value as u8), Some(id))),
-                Kind::Paper(_lives) => Some(Event::Action(Update::Life, Some(id))),
-                Kind::FloorVent { .. } | Kind::Candle { .. } => {if state.on.air {*v = -6}; None},
-                Kind::Guitar => Some(Event::Action(Update::Start(Environment::Guitar), None)),
-                Kind::Switch(None) => Some(Event::Action(Update::Lights, None)),
-                Kind::Stair(Vertical::Up, to) => Some(Event::Control(State::Ascending(to, state.player.y()))),
-                Kind::Stair(Vertical::Down, to) => Some(Event::Control(State::Descending(to, state.player.y()))),
-                Kind::Wall{..} => {
-                    test >>= previous;
-                    if let Some(bounds) = self.active_area(true) {
-                        if test.left() < bounds.right() && test.right() >= bounds.right() {
-                            *h += (bounds.right() - test.left()) as i16;
-                        }
-                        if test.right() > bounds.left() && test.left() <= bounds.left() {
-                            *h -= (test.right() - bounds.left()) as i16;
-                        }
+        match self.kind {
+            Kind::CeilingDuct { destination, .. } if !state.is_ready(id) => Some(Event::Control(State::Escaping(destination))),
+            Kind::CeilingDuct {..} | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
+            Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(0..11))) }
+            Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
+            Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} 
+                => Some(Event::Control(DIE)),
+            Kind::Clock(value) | Kind::Bonus(value, ..) => Some(Event::Action(Update::Score(value), Some(id))),
+            Kind::Battery(value) => Some(Event::Action(Update::Energy(value as u8), Some(id))),
+            Kind::Paper(_lives) => Some(Event::Action(Update::Life, Some(id))),
+            Kind::FloorVent { .. } | Kind::Candle { .. } => {if state.on.air {*v = -6}; None},
+            Kind::Guitar => Some(Event::Action(Update::Start(Environment::Guitar), None)),
+            Kind::Switch(None) => Some(Event::Action(Update::Lights, None)),
+            Kind::Stair(Vertical::Up, to) => Some(Event::Control(State::Ascending(to, state.player.y()))),
+            Kind::Stair(Vertical::Down, to) => Some(Event::Control(State::Descending(to, state.player.y()))),
+            Kind::Wall{..} => {
+                test >>= previous;
+                if let Some(bounds) = self.active_area(true) {
+                    if test.left() < bounds.right() && test.right() >= bounds.right() {
+                        *h += (bounds.right() - test.left()) as i16;
                     }
-                    Some(Event::Action(Update::Bump, None))
+                    if test.right() > bounds.left() && test.left() <= bounds.left() {
+                        *h -= (test.right() - bounds.left()) as i16;
+                    }
                 }
-                _ => None
+                Some(Event::Action(Update::Bump, None))
             }
+            _ => None
         }
     }
 }
@@ -428,7 +426,7 @@ const BOUNDS: [Object; 3] = [
         Outcome::Continue(events)
     }
 
-    fn is_ready(&self, o: object::Id) -> bool {
+    pub fn is_ready(&self, o: object::Id) -> bool {
         self.ready.get(&o).map(|&ready| ready).unwrap_or_else(|| 
             if o.get() as usize >= self.room.len() { true } else {
                 match self.room[o].kind {
@@ -455,6 +453,11 @@ const BOUNDS: [Object; 3] = [
     pub fn active_items(&self) -> impl Iterator<Item = &Object> {
         self.items.iter()
             .map(|&index| &self.room[index] )
+    }
+
+    pub fn active_entries(&self) -> impl Iterator<Item = (object::Id, &Object)> {
+        self.items.iter()
+            .map(|&index| (index, &self.room[index]) )
     }
 
     pub fn active_hazards(&self) -> impl Iterator<Item = (u8, Enemy, (i16, i16), bool)> + '_ {
