@@ -117,11 +117,11 @@ mod object {
                 // Is::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT),
                 // Is::Switch(Some(..)) => ("power", atlas::TOGGLE),
                 // Is::Switch(None) => ("power", atlas::SWITCH),
-                // Is::Outlet{..} => ("power", atlas::OUTLET),
+                Is::Outlet{..} => ("power", atlas::OUTLET, CENTER),
                 Is::Macintosh => ("visual", atlas::COMPUTER, BOTTOM),
                 Is::Books => ("visual", atlas::BOOKS, BOTTOM),
                 Is::Painting => ("visual", atlas::PAINTING, CENTER),
-                // Is::Guitar => ("visual", atlas::GUITAR),
+                Is::Guitar => ("visual", atlas::GUITAR, BOTTOM),
                 // Is::Stair(direction, ..) => ("stairs", match direction {Vertical::Up => atlas::STAIRS_UP, Vertical::Down => atlas::STAIRS_DOWN}),
                 #[cfg(debug_assertions)]
                 _ => return eprintln!("Object {:?} not implemented yet.", self.1)
