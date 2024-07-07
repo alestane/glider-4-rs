@@ -81,7 +81,8 @@ impl Kind {
         match self {
             Is::Table{..} | Is::Shelf {..} |
             Is::CeilingVent{..} | Is::CeilingDuct{ready: false, ..} | 
-            Is::Drip{..} 
+            Is::Drip{..} |
+            Is::Stair(Vertical::Up, ..)
                 => (Span::Center, Rise::Top),
             Is::Exit{..} |
             Is::Painting{..} | Is::Mirror(..) | Is::Window(..) |
@@ -89,7 +90,7 @@ impl Kind {
             Is::Switch(..) | Is::Thermostat |
             Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..)
                 => (Span::Center, Rise::Center),
-            Is::Stair(..) |
+            Is::Stair(Vertical::Down, ..) |
             Is::Fan{..} | 
             Is::FloorVent{..} | Is::Candle{..} |
             Is::Grease{..} |
@@ -117,7 +118,7 @@ impl Object {
     }
  
     pub fn active_area(&self, ready: bool) -> Option<Bounds> {
-        let position = self.position;
+        let mut position = self.position;
         let anchor = self.kind.anchor();
         let size = unsafe{ match self.kind {
             Kind::FloorVent { height } | Kind::Candle {height} => Size::new(16, height.max(1)),
@@ -129,7 +130,7 @@ impl Object {
                 } << position).as_unsigned()),
             // Kind::Fan { faces: Side::Right, range } => Rect{left_: bounds.right(), top_: bounds.top() + 10, right_: range, bottom_: bounds.top() + 30},
             // Kind::Fan { faces: Side::Left, range } => Rect{left_: range, top_: bounds.top() + 10, right_: bounds.left(), bottom_: bounds.top() + 30},
-            Kind::Stair(..) => const{ Some(Size::new_unchecked(97, 8)) },
+            Kind::Stair(v, ..) => { if v == Vertical::Up {*position.y_mut() -= 254}; const{ Size::new(97, 8)}},
             Kind::Wall(..) => const{ Size::new(14, 342) },
             Kind::Obstacle(size) => Some(size),
             Kind::Table{width} => Some(Size::from((width, const{ NonZero::new_unchecked(9) }))),
