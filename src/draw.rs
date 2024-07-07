@@ -109,12 +109,14 @@ mod object {
                 Is::Clock(_) => ("collectible", atlas::CLOCK, BOTTOM),
                 Is::Battery(..) => ("collectible", atlas::BATTERY, BOTTOM),
                 Is::Paper(..) => ("collectible", atlas::PAPER, BOTTOM),
+                Is::RubberBands(..) => ("collectible", atlas::BANDS, BOTTOM),
+                Is::Grease{..} => ("grease", match self.0.into() {Some(1) => atlas::TIPPING, Some(2) => atlas::TIPPED, _=> atlas::UPRIGHT}, BOTTOM),
                 Is::FloorVent { .. } => ("blowers", atlas::UP, TOP),
                 Is::CeilingVent { .. } => ("blowers", atlas::DOWN, BOTTOM),
                 Is::CeilingDuct { .. } => ("blowers", atlas::DUCT, BOTTOM),
                 Is::Candle { .. } => ("blowers", atlas::CANDLE, BOTTOM),
-                // Is::Fan { faces: Side::Right, .. } => ("blowers", atlas::FAN_RIGHT),
-                // Is::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT),
+                Is::Fan { faces: Side::Right, .. } => ("blowers", atlas::FAN_RIGHT, BOTTOM),
+                Is::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT, BOTTOM),
                 // Is::Switch(Some(..)) => ("power", atlas::TOGGLE),
                 Is::Switch(None) => ("power", atlas::SWITCH, CENTER),
                 Is::Outlet{..} => ("power", atlas::OUTLET, CENTER),
@@ -133,7 +135,7 @@ mod object {
     fn draw_table<Display: Scribe>(display: &mut Display, bounds: Rect) -> Result<(), String> {
         let bounds = sdl2::rect::Rect::from(bounds);
         let builder = display.get_builder();
-        display.outline_rect(bounds, BROWN);
+        display.outline_rect(bounds, BROWN)?;
         display.pen(BLACK, &[(bounds.left() + 1, bounds.bottom() - 2), (bounds.right() - 1, bounds.bottom() - 2)])?;
         display.pen(BROWN_LT, &[(bounds.left() + 1, bounds.top() + 1), (bounds.right() - 2, bounds.top() + 1)])?;
         let drop = -(bounds.top().saturating_sub_unsigned(VERT_FLOOR));
@@ -413,7 +415,7 @@ mod room {
     impl Visible for (&glider::Play<'_>, &Animations) {
         fn show<Display: Scribe>(&self, display: &mut Display) {
             let &(play, animations) = self;
-            let (mut player_position, facing, backward) = play.player();
+            let (player_position, facing, backward) = play.player();
             let facing = match facing {Side::Left => "glider.left", Side::Right => "glider.right"};
             let frame = animations.check(0).unwrap_or(if backward {atlas::TIPPED} else {atlas::LEVEL});
             if play.dark() {
@@ -427,8 +429,13 @@ mod room {
                         display.sprite((player_position.0 - 16, player_position.1 - 32), CENTER, facing, frame)
                     );
                 }
-                for item in play.active_items().filter(|&o| o.dynamic()) {
-                    (None, item).show(display);
+                for (id, item) in play.active_entries().filter(|(_, &o)| o.dynamic()) {
+                    let frame = match item.kind {
+                        object::Kind::Grease{..} if play.is_ready(id) => Some(atlas::UPRIGHT),
+                        object::Kind::Grease{..} => animations.check(id.get() as u8).or(Some(atlas::TIPPED)),
+                        _ => None
+                    };
+                    (frame, item).show(display);
                 }
             }
             for (id, hazard, position, is_on) in play.active_hazards() {
