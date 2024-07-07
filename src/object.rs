@@ -133,8 +133,13 @@ impl Object {
             Kind::Wall(..) => const{ Size::new(14, 342) },
             Kind::Obstacle(size) => Some(size),
             Kind::Table{width} => Some(Size::from((width, const{ NonZero::new_unchecked(9) }))),
+            Kind::Shelf{width} => Some(Size::from((width, const{ NonZero::new_unchecked(5) }))),
+            Kind::Cabinet(size) => Some(size),
+            Kind::Books => const{ Size::new(64, 55) },
             Kind::Macintosh => const{ Size::new(45, 58) },
             Kind::Clock(..) => const{ Size::new(32, 29) },
+            Kind::Battery(..) => const{ Size::new(16, 26) },
+            Kind::Paper(..) => const{ Size::new(48, 21) },
             #[cfg(debug_assertions)]
             _ => None
         } }?;
