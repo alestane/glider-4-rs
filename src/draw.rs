@@ -108,10 +108,10 @@ mod object {
                     => return self.1.show(display),
                 Is::Clock(_) => ("collectible", atlas::CLOCK, BOTTOM),
                 Is::Battery(..) => ("collectible", atlas::BATTERY, BOTTOM),
-                // Is::Paper(..) => ("collectible", atlas::PAPER),
+                Is::Paper(..) => ("collectible", atlas::PAPER, BOTTOM),
                 Is::FloorVent { .. } => ("blowers", atlas::UP, TOP),
                 // Is::CeilingVent { .. } => ("blowers", atlas::DOWN),
-                // Is::CeilingDuct { .. } => ("blowers", atlas::DUCT),
+                Is::CeilingDuct { .. } => ("blowers", atlas::DUCT, BOTTOM),
                 Is::Candle { .. } => ("blowers", atlas::CANDLE, BOTTOM),
                 // Is::Fan { faces: Side::Right, .. } => ("blowers", atlas::FAN_RIGHT),
                 // Is::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT),
@@ -421,8 +421,8 @@ mod room {
                     (None, item).show(display);
                 }
             } else {
-                for item in play.active_items().filter(|&o| matches!(o.kind, object::Kind::Mirror(..))) {
-                    let bounds: Rect = space::Rect::default().into();
+                for (position, size) in play.active_items().filter_map(|&o| match o.kind{object::Kind::Mirror(size) => Some((o.position, size - (8, 8))), _ => None}) {
+                    let bounds = space::Rect::from(size / CENTER << position);
                     display.clipping(bounds, |display|
                         display.sprite((player_position.0 - 16, player_position.1 - 32), CENTER, facing, frame)
                     );
