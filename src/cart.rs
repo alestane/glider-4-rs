@@ -242,7 +242,10 @@ pub struct Size<T: Transfer<Unsigned = T> + ZeroablePrimitive>{
     height_: NonZero<T::Unsigned>,
 }
 
-impl<T: Transfer<Unsigned = T> + ZeroablePrimitive> Size<T> {
+impl<T> Size<T> 
+where 
+    T: Transfer<Unsigned = T> + ZeroablePrimitive
+{
     pub(crate) const fn new(width: T, height: T) -> Option<Self> { 
         match (NonZero::new(width), NonZero::new(height)) {
             (Some(width_), Some(height_)) => Some(Self{width_, height_}),
@@ -262,6 +265,104 @@ where
     T: Transfer<Unsigned = T> + ZeroablePrimitive + From<u8>
 {
     fn default() -> Self { const{ unsafe{ Size::new_unchecked(1.into(), 1.into()) } } }
+}
+
+impl<T> SubAssign<(T, T)> for Size<T> 
+where
+    T: Combine<Unsigned = T> + ZeroablePrimitive + From<u8>
+{
+    fn sub_assign(&mut self, rhs: (T, T)) { 
+        let minimum = NonZero::new(T::from(1u8)).unwrap();
+        self.width_ = NonZero::new(self.width_.get().sub_unsigned(rhs.0)).unwrap_or(minimum);
+        self.height_ = NonZero::new(self.height_.get().sub_unsigned(rhs.1)).unwrap_or(minimum);
+     }
+}
+
+impl<T> Sub<(T, T)> for Size<T>
+where
+    T: Combine<Unsigned = T> + ZeroablePrimitive,
+    Self: SubAssign<(T, T)>
+{
+    type Output = Self;
+    fn sub(mut self, rhs: (T, T)) -> Self::Output {
+        self -= rhs;
+        self
+    }
+}
+
+impl<T> AddAssign<(T, T)> for Size<T> 
+where
+    T: Combine<Unsigned = T> + ZeroablePrimitive
+{
+    fn add_assign(&mut self, rhs: (T, T)) { 
+        self.width_ = NonZero::new(self.width_.get().add_unsigned(rhs.0)).unwrap();
+        self.height_ = NonZero::new(self.height_.get().add_unsigned(rhs.1)).unwrap();
+     }
+}
+
+impl<T> Add<(T, T)> for Size<T>
+where
+    T: Combine<Unsigned = T> + ZeroablePrimitive,
+    Self: AddAssign<(T, T)>
+{
+    type Output = Self;
+    fn add(mut self, rhs: (T, T)) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl<T> MulAssign<(NonZero<T>, NonZero<T>)> for Size<T> 
+where
+    T: Combine<Unsigned = T> + ZeroablePrimitive + Mul<T, Output = T>
+{
+    fn mul_assign(&mut self, rhs: (NonZero<T>, NonZero<T>)) {
+        self.width_ = NonZero::new(self.width_.get() * rhs.0.get()).unwrap();
+        self.height_ = NonZero::new(self.height_.get() * rhs.1.get()).unwrap();
+    }
+}
+
+impl<T> MulAssign<NonZero<T>> for Size<T>
+where
+    T: Combine<Unsigned = T> + ZeroablePrimitive,
+    Self: MulAssign<(NonZero<T>, NonZero<T>)>
+{
+    fn mul_assign(&mut self, rhs: NonZero<T>) {
+        *self *= (rhs, rhs);
+    }
+}
+
+impl<T> DivAssign<(NonZero<T>, NonZero<T>)> for Size<T> 
+where
+    T: Combine<Unsigned = T> + ZeroablePrimitive + From<u8> + Div<T, Output = T>
+{
+    fn div_assign(&mut self, rhs: (NonZero<T>, NonZero<T>)) {
+        let minimum = NonZero::new(T::from(1u8)).unwrap();
+        self.width_ = NonZero::new(self.width_.get() / rhs.0.get()).unwrap_or(minimum);
+        self.height_ = NonZero::new(self.height_.get() / rhs.1.get()).unwrap_or(minimum);
+    }
+}
+
+impl<T> DivAssign<NonZero<T>> for Size<T>
+where
+    T: Combine<Unsigned = T> + ZeroablePrimitive + From<u8>,
+    Self: DivAssign<(NonZero<T>, NonZero<T>)>
+{
+    fn div_assign(&mut self, rhs: NonZero<T>) {
+        *self /= (rhs, rhs);
+    }
+}
+
+impl<T, O> Div<O> for Size<T>
+where
+    T: Combine<Unsigned = T> + ZeroablePrimitive,
+    Self: DivAssign<O>
+{
+    type Output = Self;
+    fn div(mut self, rhs: O) -> Self::Output {
+        self /= rhs;
+        self
+    }
 }
 
 impl<T: Transfer<Unsigned = T> + ZeroablePrimitive> From<(NonZero<T>, NonZero<T>)> for Size<T> {
