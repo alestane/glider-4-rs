@@ -263,7 +263,7 @@ impl Room {
 
     fn enter_at(&self, from: Entrance) -> ((i16, i16), Side) {
         match from {
-        	Entrance::Air => ((self.entrance(from) + 24, room::VERT_CEILING as i16 + 10), Side::Right),
+        	Entrance::Air => ((self.entrance(from), room::VERT_CEILING as i16 + 10), Side::Right),
             Entrance::Spawn(side) => ((match side { Side::Left => 24, Side::Right => 488}, 50), -side),
             Entrance::Flying(side, height) => ((match side { Side::Left => 24, Side::Right => 488}, height as i16), -side),
             Entrance::Down => ((self.entrance(from) + 88, room::VERT_FLOOR as i16 - 10), Side::Left),
