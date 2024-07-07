@@ -63,7 +63,7 @@ const ITEMS: [Rect; 99] = [
     Rect::new_signed(48, 127, 112, 297),    // guitar
     Rect::new_signed(192, 71, 208, 100),    // shelf stanchion
     Rect::new_signed(448, 270, 511, 341),   // wastebasket
-    Rect::new_signed(408, 0, 510, 92),    // painting
+    Rect::new_signed(408, 0, 510, 92),      // painting
     Rect::new_signed(256, 209, 301, 267),   // macintosh
 
     Rect::new_signed(142, 0, 160, 26),      // light switch
