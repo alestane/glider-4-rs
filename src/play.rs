@@ -310,6 +310,8 @@ impl super::object::Object {
                 Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} 
                     => Some(Event::Control(DIE)),
                 Kind::Clock(value) | Kind::Bonus(value, ..) => Some(Event::Action(Update::Score(value), Some(id))),
+                Kind::Battery(value) => Some(Event::Action(Update::Energy(value as u8), Some(id))),
+                Kind::Paper(_lives) => Some(Event::Action(Update::Life, Some(id))),
                 Kind::FloorVent { .. } | Kind::Candle { .. } => {if state.on.air {*v = -6}; None},
                 Kind::Guitar => Some(Event::Action(Update::Start(Environment::Guitar), None)),
                 Kind::Switch(None) => Some(Event::Action(Update::Lights, None)),
