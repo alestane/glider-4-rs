@@ -141,6 +141,7 @@ impl Object {
             Kind::Clock(..) => const{ Size::new(32, 29) },
             Kind::Battery(..) => const{ Size::new(16, 26) },
             Kind::Paper(..) => const{ Size::new(48, 21) },
+            Kind::Switch(..) => const{ Size::new(18, 26) },
             #[cfg(debug_assertions)]
             _ => None
         } }?;

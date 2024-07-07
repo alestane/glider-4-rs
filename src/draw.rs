@@ -116,7 +116,7 @@ mod object {
                 // Is::Fan { faces: Side::Right, .. } => ("blowers", atlas::FAN_RIGHT),
                 // Is::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT),
                 // Is::Switch(Some(..)) => ("power", atlas::TOGGLE),
-                // Is::Switch(None) => ("power", atlas::SWITCH),
+                Is::Switch(None) => ("power", atlas::SWITCH, CENTER),
                 Is::Outlet{..} => ("power", atlas::OUTLET, CENTER),
                 Is::Macintosh => ("visual", atlas::COMPUTER, BOTTOM),
                 Is::Books => ("visual", atlas::BOOKS, BOTTOM),
