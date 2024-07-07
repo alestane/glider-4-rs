@@ -1,4 +1,4 @@
-use std::{collections::HashMap, iter::repeat, num::NonZero};
+use std::{collections::HashMap, iter::repeat, num::NonZero, cell::RefCell};
 
 use glider::{prelude::*, Bounds, Reference};
 use sdl2::{pixels::{Color, PixelFormatEnum}, rect::{Point, Rect}, render::{BlendMode, Canvas, RenderTarget, Texture, TextureCreator}, surface::Surface, video::Window};
@@ -17,7 +17,7 @@ fn random() -> u16 {
 }
 
 pub type Frame = Box<dyn Iterator<Item = usize>>;
-pub type Animations = HashMap<u8, Frame>;
+pub type Animations = RefCell<HashMap<u8, Frame>>;
 
 const BLACK     : Color = Color::RGB(0x00, 0x00, 0x00);
 const WHITE     : Color = Color::RGB(0xFF, 0xFF, 0xFF);
@@ -33,6 +33,29 @@ const GREEN_LT  : Color = Color::RGB(0x1F, 0xB8, 0x14);
 
 pub trait Visible {
     fn show<Display: Scribe>(&self, display: &mut Display);
+}
+
+trait Animator {
+    fn check(&self, id: u8) -> Option<usize>;
+    fn check_or_else(&self, id: u8, f: impl FnOnce(u8) -> Frame) -> usize;
+}
+
+impl Animator for Animations {
+    fn check(&self, id: u8) -> Option<usize> { 
+        let mut list = self.borrow_mut();
+        let index = list.get_mut(&id).and_then(|id| id.next());
+        if index.is_none() { list.remove(&id); }
+        index
+     }
+     fn check_or_else(&self, id: u8, f: impl FnOnce(u8) -> Frame) -> usize {
+        let mut list = self.borrow_mut();
+        if let Some(seq) = list.get_mut(&id) {
+            Some(seq)
+        } else {
+            list.try_insert(id, f(id)).ok()
+        }.and_then(|i| i.next())
+        .unwrap()
+    }
 }
 
 mod object {
@@ -374,6 +397,64 @@ mod room {
             }
         }
     }
+
+    impl Visible for sdl2::pixels::Color {
+        fn show<Display: Scribe>(&self, display: &mut Display) {
+            display.clear(*self)
+        }
+    }
+
+    impl Visible for Texture<'_> {
+        fn show<Display: Scribe>(&self, display: &mut Display) {
+            display.draw(self, None, None)
+        }
+    }
+
+    impl Visible for (&glider::Play<'_>, &Animations) {
+        fn show<Display: Scribe>(&self, display: &mut Display) {
+            let &(play, animations) = self;
+            let (mut player_position, facing, backward) = play.player();
+            let facing = match facing {Side::Left => "glider.left", Side::Right => "glider.right"};
+            let frame = animations.check(0).unwrap_or(if backward {atlas::TIPPED} else {atlas::LEVEL});
+            if play.dark() {
+                for item in play.active_items().filter(|&o| matches!(o.kind, object::Kind::Switch(None))) {
+                    (None, item).show(display);
+                }
+            } else {
+                for item in play.active_items().filter(|&o| matches!(o.kind, object::Kind::Mirror(..))) {
+                    let bounds: Rect = space::Rect::default().into();
+                    display.clipping(bounds, |display|
+                        display.sprite((player_position.0 - 16, player_position.1 - 32), CENTER, facing, frame)
+                    );
+                }
+                for item in play.active_items().filter(|&o| o.dynamic()) {
+                    (None, item).show(display);
+                }
+            }
+            for (id, hazard, position, is_on) in play.active_hazards() {
+                if !is_on { continue; }
+                let position: space::Point = position.into();
+                let frame = animations.check_or_else(id, |id| {
+                    let range = match hazard {
+                        Enemy::Dart => atlas::FLYING,
+                        Enemy::Balloon => atlas::RISING,
+                        Enemy::Copter => atlas::FALLING,
+                        Enemy::Flame => atlas::FLAME,
+                        Enemy::Shock => atlas::SPARK,
+                        _ => 0..0
+                    };
+                    let skip = id as usize % (range.end - range.start);
+                    let mut c = range.cycle().map(|i| repeat(i).take(2)).flatten();
+                    c.advance_by(skip).ok();
+                    Box::new(c)
+                });
+                (frame, hazard, position.into()).show(display);
+            }
+            display.sprite((player_position.0, player_position.1 + 10), BOTTOM, facing, frame);
+            display.sprite((player_position.0, VERT_FLOOR as i16), TOP, facing, atlas::SHADOW);
+            display.publish();
+        }
+    }
 }
 
 trait Texturizer {
@@ -402,18 +483,33 @@ impl<T> Illuminator for (&mut Canvas<Window>, T) {
 }
 
 pub trait Scribe : Illuminator {
+    fn clear(&mut self, color: sdl2::pixels::Color);
+    fn publish(&mut self);
+    fn clipping(&mut self, clip: impl Into<Option<Rect>>, doing: impl FnOnce(&mut Self));
     fn draw(&mut self, pixels: &Texture, source: impl Into<Option<Rect>>, dest: impl Into<Option<Rect>>);
     fn pen<const N: usize>(&mut self, stroke: impl Into<Color>, vertices: &[(i32, i32); N]) -> Result<(), String>;
     fn fill(&mut self, tone: impl Into<Color>, bounds: Rect) -> Result<(), String>;
     fn outline_rect(&mut self, bounds: Rect, fill: impl Into<Color>) -> Result<(), String>;
     fn limn_rect(&mut self, bounds: Rect, fill: impl Into<Color>, hilite: impl Into<Color>) -> Result<(), String>;
     fn sink_rect(&mut self, bounds: Rect, fill: impl Into<Option<Color>>) -> Result<(), String>;
-    fn show<V: Visible>(&mut self, item: &V);
+    fn show<V: Visible>(&mut self, item: &V) -> &mut Self;
     fn sprite(&mut self, position: (i16, i16), anchor: Anchor, name: &str, index: usize);
-    fn draw_room(&mut self, play: &glider::Play, times: &mut HashMap<u8, Box<dyn Iterator<Item = usize>>>, backdrop: &Texture);
 }
 
 impl<R:RenderTarget, T> Scribe for (&mut Canvas<R>, &Atlas<'_>) where Self: Illuminator<Builder = sdl2::render::TextureCreator<T>> {
+    fn clear(&mut self, color: sdl2::pixels::Color) {
+        let display = &mut *self.0;
+        display.set_draw_color(color);
+        display.clear();
+    }
+    fn publish(&mut self) { self.0.present() }
+
+    fn clipping(&mut self, clip: impl Into<Option<Rect>>, doing: impl FnOnce(&mut Self)) {
+        self.0.set_clip_rect(clip.into());
+        doing(self);
+        self.0.set_clip_rect(None);
+    }
+
     fn draw(&mut self, pixels: &Texture, source: impl Into<Option<Rect>>, dest: impl Into<Option<Rect>>) {
         self.0.copy(pixels, source, dest)
             .expect("failed to draw to canvas");
@@ -470,7 +566,7 @@ impl<R:RenderTarget, T> Scribe for (&mut Canvas<R>, &Atlas<'_>) where Self: Illu
         ].as_ref())
     }
 
-    fn show<V: Visible>(&mut self, item: &V) { item.show(self) }
+    fn show<V: Visible>(&mut self, item: &V) -> &mut Self { item.show(self); self }
 
     fn sprite(&mut self, position: (i16, i16), anchor: Anchor, name: &str, index: usize) {
         let (wedge, tex) = self.1.get(name);
@@ -478,68 +574,5 @@ impl<R:RenderTarget, T> Scribe for (&mut Canvas<R>, &Atlas<'_>) where Self: Illu
         let size = Bounds::from(frame).size();
         let bounds = space::Rect::from(size / anchor << Reference::from(position));
         self.draw(tex, wedge[index], bounds);
-    }
-
-    fn draw_room(&mut self, play: &glider::Play, times: &mut Animations, backdrop: &Texture) {
-        fn advance(lookup: &mut Animations, id: u8) -> Option<usize> {
-            let index = lookup.get_mut(&id).and_then(|a| a.next());
-            if index.is_none() {
-                lookup.remove(&id);
-            }
-            index
-        }
-
-        let (display, sprites) = (&mut *self.0, self.1);
-        display.set_draw_color(Color::RGB(0, 0, 0));
-        display.clear();
-        let (mut player_position, facing, backward) = play.player();
-        let (slides, pixels) = sprites.get(match facing {Side::Left => "glider.left", Side::Right => "glider.right"} );
-        let frame: sdl2::rect::Rect = slides[advance(times, 0).unwrap_or(if backward {atlas::TIPPED} else {atlas::LEVEL})].into();
-        if frame.height() > 20 {player_position.1 -= frame.height() as i16 / 2 - 10};
-        if play.dark() {
-            display.set_draw_color(BLACK);
-            display.clear();
-            for item in play.active_items().filter(|&o| matches!(o.kind, object::Kind::Switch(None))) {
-                (None, item).show(self);
-            }
-        } else {
-            self.draw(&backdrop, None, None);
-            for item in play.active_items().filter(|&o| matches!(o.kind, object::Kind::Mirror(..))) {
-                let bounds: Rect = space::Rect::default().into();
-                self.0.set_clip_rect(Rect::new(bounds.left() + 3, bounds.top() + 3, bounds.width() - 6, bounds.height() - 6));
-                self.draw(pixels, frame, frame.centered_on((player_position.0 as i32 - 16, player_position.1 as i32  - 32)));
-            }
-            self.0.set_clip_rect(None);
-            for item in play.active_items().filter(|&o| o.dynamic()) {
-                (None, item).show(self);
-            }
-        }
-        for (id, hazard, position, is_on) in play.active_hazards() {
-        	let position: space::Point = position.into();
-            let (width, height, group, range) = match hazard {
-                Enemy::Dart => (64, 22, "dart", atlas::FLYING),
-            	Enemy::Balloon => (32, 32, "balloon", atlas::RISING),
-                Enemy::Copter => (32, 32, "copter", atlas::FALLING),
-                Enemy::Flame => (11, 12, "fire", atlas::FLAME),
-                Enemy::Shock => (32, 25, "power", atlas::SPARK),
-                _ => continue
-            };
-            if !is_on { continue; }
-            let frame = if let Some(frame) = times.get_mut(&id).and_then(|seq| seq.next()) {
-				frame
-			} else {
-				let skip = id as usize % (range.end - range.start);
-				let mut c = range.cycle().map(|i| repeat(i).take(2)).flatten();
-				c.advance_by(skip).ok();
-				let frame = unsafe{ c.next().unwrap_unchecked() };
-				times.insert(id, Box::new(c));
-				frame
-			};
-			self.sprite(position.into(), CENTER, group, frame);
-        }
-        self.draw(pixels, frame, frame.centered_on((player_position.0 as i32, player_position.1 as i32)));
-        let frame: sdl2::rect::Rect = slides[atlas::SHADOW].into();
-        self.draw(pixels, frame, frame.centered_on((player_position.0 as i32, (VERT_FLOOR + frame.height() / 2) as i32)));
-        self.0.present();
     }
 }
