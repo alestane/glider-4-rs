@@ -123,7 +123,7 @@ impl Object {
                 Enemy::Flame => Hazard{
                     kind, 
                     period: 0..0, 
-                    position: self.position.as_signed() - (0, 20), 
+                    position: self.position.as_signed() - (3, 27), 
                     is_on: true, 
                     control: this.into()
                 },
