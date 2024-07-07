@@ -1,4 +1,4 @@
-use std::{convert::From, num::NonZero, slice::SliceIndex};
+use std::{num::NonZero, slice::SliceIndex, ops::Index};
 
 use super::{*, object::Object};
 
@@ -7,26 +7,31 @@ pub const SCREEN_WIDTH:		u16 = 512;
 pub const VERT_CEILING:		u16 = 24;
 pub const VERT_FLOOR:		u16 = 325;
 
-pub const BOUNDS:	Rect = Rect::new(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+pub const BOUNDS:	Bounds = unsafe { Bounds::new_unchecked(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT) };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct RoomId(pub(crate) NonZero<u16>);
+pub struct Id(pub(crate) NonZero<u16>);
 
-impl From<u16> for RoomId {
+impl From<u16> for self::Id {
 	fn from(value: u16) -> Self { unsafe { Self( NonZero::new_unchecked( value.saturating_sub(1) + 1 ) ) } }
 }
 
-impl From<usize> for RoomId {
+impl From<usize> for self::Id {
 	fn from(value: usize) -> Self { unsafe { Self( NonZero::new_unchecked((value + 1) as u16) ) } }
 }
 
-impl From<RoomId> for usize {
-	fn from(value: RoomId) -> Self { value.0.get() as usize - 1 }
+impl From<self::Id> for usize {
+	fn from(value: Id) -> Self { value.0.get() as usize - 1 }
 }
 
-impl From<RoomId> for Option<u16> {
-    fn from(value: RoomId) -> Self { Some(value.0.get()) }
+impl From<self::Id> for Option<u16> {
+    fn from(value: Id) -> Self { Some(value.0.get()) }
+}
+
+impl Id {
+    pub fn prev(&self) -> Option<Id> { Some(Id(NonZero::new(self.0.get() - 1)?)) }
+    pub fn next(&self) -> Option<Id> { Some(Id(self.0.checked_add(1)?)) }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,24 +46,25 @@ pub enum Enemy {
     Shock,
 }
 
-impl From<ObjectKind> for Option<Enemy> {
-    fn from(value: ObjectKind) -> Self {
+
+impl From<object::Kind> for Option<Enemy> {
+    fn from(value: object::Kind) -> Self {
         Some(match value {
-            ObjectKind::Candle { .. } => Enemy::Flame,
-            ObjectKind::Fishbowl { .. } => Enemy::Fish,
-            ObjectKind::Ball{ .. } => Enemy::Ball,
-            ObjectKind::Toaster { .. } => Enemy::Toast,
-            ObjectKind::Outlet { .. } => Enemy::Shock,
+            object::Kind::Candle { .. } => Enemy::Flame,
+            object::Kind::Fishbowl { .. } => Enemy::Fish,
+            object::Kind::Ball{ .. } => Enemy::Ball,
+            object::Kind::Toaster { .. } => Enemy::Toast,
+            object::Kind::Outlet { .. } => Enemy::Shock,
             _ => return None
         })
     }
-}
+} 
 
-#[repr(u16)]
+#[disclose]
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Deactivated {
-    Air = 1,
-    Lights = 2,
+pub(crate) struct On {
+    air: bool,
+    lights: bool,
 }
 
 #[disclose]
@@ -66,35 +72,55 @@ pub enum Deactivated {
 pub struct Room {
     name: String,
     back_pict_id: u16,
-    tile_order: [u16; 8],
-    left_open: Option<RoomId>,
-    right_open: Option<RoomId>,
+    tile_order: [u8; 8],
+    left_open: Option<Id>,
+    right_open: Option<Id>,
     animate: Option<(Enemy, NonZero<u16>, u32)>,
-    condition_code: Option<Deactivated>,
+    environs: On,
     objects: Vec<Object>,
 }
 
-impl TryFrom<(u16, &[u8])> for Room {
-    type Error = ();
-    fn try_from(data: (u16, &[u8])) -> Result<Self, Self::Error> {
-        if data.1.len() < 58 {
-            Err( Self::Error::default() )
+impl Index<object::Id> for Room {
+    type Output = Object;
+    fn index(&self, index: object::Id) -> &Self::Output {
+        &self.objects[usize::from(index)]
+    }
+}
+
+#[derive(Debug)]
+pub enum RoomImportError<'a> {
+    ShortData(&'a [u8]),
+    TranscriptionErr(<Room as TryFrom<(Id, &'a [u8])>>::Error),
+}
+
+impl<'a> From<<Room as TryFrom<(Id, &'a [u8])>>::Error> for RoomImportError<'a> {
+    fn from(value: <Room as TryFrom<(Id, &'a [u8])>>::Error) -> Self { Self::TranscriptionErr(value) }
+}
+
+impl<'a> TryFrom<(NonZero<u16>, &'a [u8])> for Room {
+    type Error = RoomImportError<'a>;
+    fn try_from((id, data): (NonZero<u16>, &'a [u8])) -> Result<Self, Self::Error> {
+        if data.len() < import::ROOM_SIZE {
+            Err( RoomImportError::ShortData(data) )
         } else {
-            Ok(Self::from((data.0, import::RoomData::from_iter(data.1.iter().copied()))))
+            Ok(Self::try_from((Id(id), &data[..import::ROOM_SIZE]))?)
         }
     }
 }
 
 impl Room {
     pub fn walls(&self) -> impl SliceIndex<[Object], Output=[Object]> {
-        fn step(i: Option<RoomId>) -> usize { i.is_some() as usize }
+        fn step(i: Option<room::Id>) -> usize { i.is_some() as usize }
+
         step(self.left_open)..=(2 - step(self.right_open))
     }
 
+    pub fn len(&self) -> usize { self.objects.len() }
+    
     pub fn theme_index(&self) -> u16 { self.back_pict_id }
 }
-
+        
 impl std::ops::Index<Side> for Room {
-	type Output = Option<RoomId>;
+	type Output = Option<room::Id>;
 	fn index(&self, which: Side) -> &Self::Output { match which {Side::Left=>&self.left_open, Side::Right=>&self.right_open} }
 }

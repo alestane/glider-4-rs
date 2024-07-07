@@ -1,4 +1,8 @@
-#![feature(const_trait_impl, effects, generic_arg_infer, slice_as_chunks, iter_advance_by)]
+#![feature(
+    const_option, const_trait_impl, effects, 
+    generic_arg_infer, slice_as_chunks, iter_advance_by,
+    map_try_insert
+)]
 
 use sdl2::{image::LoadTexture, video::Window, render::Canvas, EventPump};
 
