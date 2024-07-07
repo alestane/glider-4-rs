@@ -1,7 +1,7 @@
 use sdl2::{keyboard::{KeyboardState, Scancode}, render::Texture};
 use glider::{Entrance, Input, Outcome, Room, Side, Update};
 use crate::{atlas, draw::{Animations, Frame, Scribe, Visible}, room::{SCREEN_HEIGHT, SCREEN_WIDTH}};
-use std::{time::{Duration, Instant}, num::NonZero, cell::RefCell};
+use std::{time::{Duration, Instant}, num::NonZero};
 
 const FADE_IN: &[usize] = &[3, 4, 3, 4, 5, 4, 5, 6, 5, 6, 7, 6, 7, 8, 7, 8, 9];
 const FADE_OUT: &[usize] = &[9, 8, 9, 8, 7, 8, 7, 6, 7, 6, 5, 6, 5, 4, 5, 4, 3];
@@ -77,7 +77,7 @@ use std::collections::HashMap;
 
 pub fn play(context: &mut crate::App, pics: &HashMap<usize, Texture>, house: &[Room]) -> Result<(u32, NonZero<u16>), ()> {
     let mut score = 0u32;
-    let mut room_index = const{ NonZero::new(3u16).unwrap() };
+    let mut room_index = crate::test::START;
     let mut arrive = Entrance::default();
     while let (points, Some((next, at))) = {
     	let room = &house[room_index.get() as usize - 1];
