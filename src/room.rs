@@ -44,6 +44,7 @@ pub enum Active {
     Ball,
     Toast,
     Shock,
+    Spill,
 }
 
 
@@ -55,6 +56,7 @@ impl From<object::Kind> for Option<Active> {
             object::Kind::Ball{ .. } => Active::Ball,
             object::Kind::Toaster { .. } => Active::Toast,
             object::Kind::Outlet { .. } => Active::Shock,
+            object::Kind::Grease { .. } => Active::Spill,
             _ => return None
         })
     }
