@@ -369,14 +369,14 @@ mod hazard {
     type Frame = space::Rect;
     use super::*;
 
-    impl Visible for (usize, Enemy, (i16, i16)) {
+    impl Visible for (usize, Active, (i16, i16)) {
         fn show<Display: Scribe>(&self, display: &mut Display) {
             let name = match self.1 {
-                Enemy::Dart => "dart",
-            	Enemy::Balloon => "balloon",
-                Enemy::Copter => "copter",
-                Enemy::Flame => "fire",
-                Enemy::Shock => "power", 
+                Active::Dart => "dart",
+            	Active::Balloon => "balloon",
+                Active::Copter => "copter",
+                Active::Flame => "fire",
+                Active::Shock => "power", 
                 _ => return
             };
             display.sprite(self.2, CENTER, name, self.0)
@@ -443,11 +443,11 @@ mod room {
                 let position: space::Point = position.into();
                 let frame = animations.check_or_else(id, |id| {
                     let range = match hazard {
-                        Enemy::Dart => atlas::FLYING,
-                        Enemy::Balloon => atlas::RISING,
-                        Enemy::Copter => atlas::FALLING,
-                        Enemy::Flame => atlas::FLAME,
-                        Enemy::Shock => atlas::SPARK,
+                        Active::Dart => atlas::FLYING,
+                        Active::Balloon => atlas::RISING,
+                        Active::Copter => atlas::FALLING,
+                        Active::Flame => atlas::FLAME,
+                        Active::Shock => atlas::SPARK,
                         _ => 0..0
                     };
                     let skip = id as usize % (range.end - range.start);

@@ -35,7 +35,7 @@ impl Id {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Enemy {
+pub enum Active {
     Dart,
     Copter,
     Balloon,
@@ -47,14 +47,14 @@ pub enum Enemy {
 }
 
 
-impl From<object::Kind> for Option<Enemy> {
+impl From<object::Kind> for Option<Active> {
     fn from(value: object::Kind) -> Self {
         Some(match value {
-            object::Kind::Candle { .. } => Enemy::Flame,
-            object::Kind::Fishbowl { .. } => Enemy::Fish,
-            object::Kind::Ball{ .. } => Enemy::Ball,
-            object::Kind::Toaster { .. } => Enemy::Toast,
-            object::Kind::Outlet { .. } => Enemy::Shock,
+            object::Kind::Candle { .. } => Active::Flame,
+            object::Kind::Fishbowl { .. } => Active::Fish,
+            object::Kind::Ball{ .. } => Active::Ball,
+            object::Kind::Toaster { .. } => Active::Toast,
+            object::Kind::Outlet { .. } => Active::Shock,
             _ => return None
         })
     }
@@ -75,7 +75,7 @@ pub struct Room {
     tile_order: [u8; 8],
     left_open: Option<Id>,
     right_open: Option<Id>,
-    animate: Option<(Enemy, NonZero<u16>, u32)>,
+    animate: Option<(Active, NonZero<u16>, u32)>,
     environs: On,
     objects: Vec<Object>,
 }

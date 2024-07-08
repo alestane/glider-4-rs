@@ -406,9 +406,9 @@ impl From<std::convert::Infallible> for InvalidRoomError {
 
 struct EnemyCode(u16);
 
-impl From<EnemyCode> for Option<room::Enemy> {
+impl From<EnemyCode> for Option<room::Active> {
     fn from(value: EnemyCode) -> Self {
-        type Use = room::Enemy;
+        type Use = room::Active;
         Some(match value.0 {
             0 => Use::Dart,
             1 => Use::Copter,

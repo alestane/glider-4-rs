@@ -1,6 +1,6 @@
 use crate::{Environment, Position, Reference, Displacement, Size, Bounds, Update, Vertical, cart::{Rise, Span, Transfer}};
 
-use super::{Input, Outcome, object::{self, Object, Kind}, room::{self, On, Room, Enemy}, Side};
+use super::{Input, Outcome, object::{self, Object, Kind}, room::{self, On, Room, Active}, Side};
 use std::{collections::{BTreeMap, BTreeSet, HashMap}, iter::from_fn, num::NonZero, ops::Range};
 
 
@@ -41,16 +41,16 @@ impl Entrance {
 }
 
 #[derive(Debug, Clone)]
-struct Hazard {
-    kind: Enemy,
+struct Obstacle {
+    kind: Active,
     position: Reference,
     period: Range<i32>,
     is_on: bool,
     control: Option<object::Id>
 }
-impl Enemy {
-    fn new(&self, delay: u32) -> Option<Hazard> {
-        Some(Hazard {
+impl Active {
+    fn new(&self, delay: u32) -> Option<Obstacle> {
+        Some(Obstacle {
             kind: *self,
 			position: if let Some(start) = self.start() {start} else {return None},
 			period: Self::period(delay),
@@ -71,14 +71,14 @@ impl Enemy {
 		(delay - (random() as i32 % (delay + 60) + 30))..delay
     }
 }
-impl Hazard {
+impl Obstacle {
 	fn bounds(&self) -> Option<Bounds> {
 		let (width, height) = unsafe { match self.kind {
-            Enemy::Dart => (NonZero::new_unchecked(64), NonZero::new_unchecked(22)),
-            Enemy::Copter => (NonZero::new_unchecked(32), NonZero::new_unchecked(32)),
-			Enemy::Balloon => (NonZero::new_unchecked(32), NonZero::new_unchecked(32)),
-			Enemy::Flame => (NonZero::new_unchecked(11), NonZero::new_unchecked(12)),
-            Enemy::Shock => (NonZero::new_unchecked(32), NonZero::new_unchecked(25)), 
+            Active::Dart => (NonZero::new_unchecked(64), NonZero::new_unchecked(22)),
+            Active::Copter => (NonZero::new_unchecked(32), NonZero::new_unchecked(32)),
+			Active::Balloon => (NonZero::new_unchecked(32), NonZero::new_unchecked(32)),
+			Active::Flame => (NonZero::new_unchecked(11), NonZero::new_unchecked(12)),
+            Active::Shock => (NonZero::new_unchecked(32), NonZero::new_unchecked(25)), 
 			_ => (NonZero::new_unchecked(1), NonZero::new_unchecked(1))
 		} };
         Some(((Size::from((width, height)) / (Span::Center, Rise::Center)) << self.position).as_unsigned())
@@ -86,14 +86,14 @@ impl Hazard {
 	fn advance(&mut self) {
         if self.period.next().is_none() {
             self.position += match self.kind {
-                Enemy::Dart => (-8, 1),
-                Enemy::Balloon => (0, -3),
-                Enemy::Copter => (-4, 2),
+                Active::Dart => (-8, 1),
+                Active::Balloon => (0, -3),
+                Active::Copter => (-4, 2),
                 _ => (0, 0),
             };
             match self.kind {
-                Enemy::Dart | Enemy::Balloon | Enemy::Copter => if let None = self.bounds().map(|bounds| bounds & room::BOUNDS) { self.reset(); }
-                Enemy::Shock => if self.is_on { 
+                Active::Dart | Active::Balloon | Active::Copter => if let None = self.bounds().map(|bounds| bounds & room::BOUNDS) { self.reset(); }
+                Active::Shock => if self.is_on { 
                     self.period.start = 0; self.is_on = false; 
                 } else { 
                     self.period.start = self.period.end - 30; self.is_on = true; 
@@ -110,24 +110,24 @@ impl Hazard {
 				self.period.start = delay - (random() as i32 % (delay + 60) + 30);
 				self.position = start;
 			},
-			(Enemy::Flame, _) => (),
+			(Active::Flame, _) => (),
 			_ => return,
 		}
 	}
 }
  
 impl Object {
-    fn effect(&self, this: object::Id) -> Option<Hazard> {
-        Option::<Enemy>::from(self.kind).and_then(|kind|
+    fn effect(&self, this: object::Id) -> Option<Obstacle> {
+        Option::<Active>::from(self.kind).and_then(|kind|
             Some(match kind {
-                Enemy::Flame => Hazard{
+                Active::Flame => Obstacle{
                     kind, 
                     period: 0..0, 
                     position: self.position.as_signed() - (3, 27), 
                     is_on: true, 
                     control: this.into()
                 },
-                Enemy::Shock => Hazard{
+                Active::Shock => Obstacle{
                     kind, 
                     period: if let object::Kind::Outlet { delay, .. } = self.kind {0..(delay as i32)} else {return None}, 
                     position: self.position.as_signed(),
@@ -240,7 +240,7 @@ pub struct Play<'a> {
     on: On,
     now: Option<State>,
     ready: BTreeMap<object::Id, bool>,
-    hazards: HashMap<u8, Hazard>,
+    hazards: HashMap<u8, Obstacle>,
 }
 impl Room {
     pub fn collider_ids(&self) -> impl Iterator<Item = object::Id> + '_ {
@@ -395,8 +395,8 @@ const BOUNDS: [Object; 3] = [
                 ).chain(self.hazards.values().filter_map(|h|
                     h.is_on
                         .then_some(h)
-                        .and_then(Hazard::bounds)
-                        .and_then(|bounds| (bounds & touch).map(|_| Event::Control(match h.kind {Enemy::Flame | Enemy::Shock => IGNITE, _ => DIE})))
+                        .and_then(Obstacle::bounds)
+                        .and_then(|bounds| (bounds & touch).map(|_| Event::Control(match h.kind {Active::Flame | Active::Shock => IGNITE, _ => DIE})))
                 )).collect();
                 let (events, outcomes): (Vec<_>, Vec<_>) = actions.into_iter().map(|e| {
                     match e {
@@ -460,8 +460,8 @@ const BOUNDS: [Object; 3] = [
             .map(|&index| (index, &self.room[index]) )
     }
 
-    pub fn active_hazards(&self) -> impl Iterator<Item = (u8, Enemy, (i16, i16), bool)> + '_ {
-        self.hazards.iter().map(|(&id, Hazard{kind, position, is_on, ..})| (id, *kind, <(i16, i16)>::from(*position), *is_on))
+    pub fn active_hazards(&self) -> impl Iterator<Item = (u8, Active, (i16, i16), bool)> + '_ {
+        self.hazards.iter().map(|(&id, Obstacle{kind, position, is_on, ..})| (id, *kind, <(i16, i16)>::from(*position), *is_on))
     }
 
     pub fn player(&self) -> ((i16, i16), Side, bool) {

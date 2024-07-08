@@ -22,7 +22,7 @@ mod prelude {
         Input, Outcome, Success, Side, Vertical, Environment, Update, 
         Bounds, Position, Size, cart::{Span, Rise, Rect, Point},
         Object, Room, House, 
-        room::Enemy,
+        room::Active,
     };
     pub mod room {
     	pub use crate::room::{SCREEN_WIDTH, SCREEN_HEIGHT, VERT_CEILING, VERT_FLOOR};
