@@ -159,7 +159,7 @@ enum State {
     Sliding(u16),
     FadingIn(Range<u8>),
     FadingOut(Range<u8>),
-    Turning(Range<u8>),
+    Turning(Side, Range<u8>),
 //    Shredding(Rect),
     Burning(Range<u16>),
     Ascending(room::Id, i16),
@@ -190,7 +190,7 @@ impl std::iter::Iterator for State {
             Self::Sliding(..) => None,
             Self::FadingIn(phase)   |
             Self::FadingOut(phase)  |
-            Self::Turning(phase)  
+            Self::Turning(_, phase)  
                 => phase.next().map(|_| (Displacement::default(), false)),
             Self::Burning(phase) => {if phase.next().is_none() {eprintln!("burn timeout"); *self = DIE}; Some(((1, 3).into(), true)) },
             /* Self::Shredding(bounds) => match bounds.height().get() {
@@ -225,7 +225,7 @@ impl From<&State> for u8 {
             State::FadingOut(phase) => 48u8 + phase.start,
             //    State::Shredding(_) => 64u8,
             State::Burning(_) => 80u8,
-            State::Turning(phase) => 96u8 + phase.start,
+            State::Turning(_, phase) => 96u8 + phase.start,
         }
     }
 }
@@ -337,7 +337,7 @@ impl super::object::Object {
         match self.kind {
             Kind::CeilingDuct { destination, .. } if !state.is_ready(id) => Some(Event::Control(State::Escaping(destination))),
             Kind::CeilingDuct {..} | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
-            Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(0..11))) }
+            Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(faces, 0..11))) }
             Kind::Grease {..} => Some(Event::Action(Update::Start(Environment::Grease, Some(id)), Some(id))),
             Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
             Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} 
@@ -411,17 +411,18 @@ const BOUNDS: [Object; 3] = [
 
  impl<'a> Play<'a> {
     pub fn frame(&mut self, actions: &[Input]) -> Outcome {
-        let signal = self.now.as_ref().map(|s| match s {
+        let mut signal = self.now.as_ref().map(|s| match s {
             State::FadingIn(..) => vec![Update::Fade(true)],
             State::FadingOut(..) => vec![Update::Fade(false)],
             State::Burning(..) => vec![Update::Burn],
+            State::Turning(..) => vec![Update::Turn(self.facing)],
             _ => vec![],
         });
         let control = if let Some(state) = self.now.as_mut() {
             if let Some(motion) = state.next() {
             	let (motion, relative) = motion;
             	let motion = if relative { motion * self.facing } else { motion };
-                Some((motion, match state {/* State::Turning(_) | */ State::Burning(..) => true, _ => false}))
+                Some((motion, match state {State::Turning(..) |  State::Burning(..) => true, _ => false}))
             } else {
 				let result = state.outcome(self.score);
 				self.now = None;
@@ -432,6 +433,12 @@ const BOUNDS: [Object; 3] = [
             }
         } else { None };
 
+        if let Some(state) = &self.now {eprintln!("{state:?}");}
+
+        if let (Some((motion, _)), Some(State::Ascending(..))) = (control, &self.now) {
+            eprintln!("Asc: {motion:?}");
+        }
+
         let (mut motion, collision) = if let Some(o) = control {
             o
         } else {
@@ -439,6 +446,7 @@ const BOUNDS: [Object; 3] = [
             for action in actions {
                 match action {
                     Input::Go(direction) => *motion.x_mut() += *direction * MAX_THRUST,
+                    Input::Flip => {signal.get_or_insert_with(|| vec![Update::Turn(-self.facing)]);},
                     _ => ()
                 };
             }
@@ -470,7 +478,13 @@ const BOUNDS: [Object; 3] = [
                             };
                             (Some(a), None)
                         },
-                        Event::Control(c) => (None, Some(c)),
+                        Event::Control(c) => {
+                            match c {
+                                State::Turning(face, ..) => self.facing = face,
+                                _ => ()
+                            }
+                            (None, Some(c))
+                        },
                     }
                 }).unzip();
                 let events: Vec<_> = signal.into_iter().flatten().chain(events.into_iter().filter_map(|e| e)).collect();
@@ -537,8 +551,8 @@ const BOUNDS: [Object; 3] = [
         )})
     }
 
-    pub fn player(&self) -> ((i16, i16), Side, bool) {
-        (self.player.into(), self.facing, self.facing * self.motion.x() < 0)
+    pub fn player(&self) -> ((i16, i16), Option<Side>, bool) {
+        (self.player.into(), match self.now{Some(State::Turning(..)) => None, _ => Some(self.facing)}, self.facing * self.motion.x() < 0)
     }
 
     pub fn reset(&mut self, at: Entrance) {
@@ -551,5 +565,9 @@ const BOUNDS: [Object; 3] = [
         if let Entrance::Spawn(..) = at {
         	self.now = Some(State::FadingIn(0..16));
         }
+    }
+
+    pub fn debug_zones<'this>(&'this self) -> impl Iterator<Item=Bounds> + 'this {
+        self.room.objects.iter().filter_map(|o| o.active_area(true))
     }
 }
