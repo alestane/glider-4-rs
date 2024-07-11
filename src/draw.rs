@@ -37,7 +37,7 @@ pub trait Visible {
 
 trait Animator {
     fn check(&self, id: u8) -> Option<usize>;
-    fn check_or_else(&self, id: u8, f: impl FnOnce(u8) -> Frame) -> usize;
+    fn check_or_else(&self, id: u8, f: impl FnOnce(u8) -> Option<Frame>) -> usize;
 }
 
 impl Animator for Animations {
@@ -47,15 +47,20 @@ impl Animator for Animations {
         if index.is_none() { list.remove(&id); }
         index
      }
-     fn check_or_else(&self, id: u8, f: impl FnOnce(u8) -> Frame) -> usize {
+     fn check_or_else(&self, id: u8, f: impl FnOnce(u8) -> Option<Frame>) -> usize {
         let mut list = self.borrow_mut();
         if let Some(seq) = list.get_mut(&id) {
             Some(seq)
         } else {
-            list.try_insert(id, f(id)).ok()
+            let Some(f) = f(id) else { return 0 };
+            list.try_insert(id, f).ok()
         }.and_then(|i| i.next())
         .unwrap()
     }
+}
+
+trait Cycle {
+    fn start(&self, seed: u8) -> Option<Frame>;
 }
 
 mod object {
@@ -377,9 +382,27 @@ mod hazard {
                 Active::Copter => "copter",
                 Active::Flame => "fire",
                 Active::Shock => "power", 
+                Active::Spill => return { display.fill(BLACK, Rect::new(self.2.0 as i32, self.2.1 as i32, self.0 as u32, 3)).ok();},
                 _ => return
             };
             display.sprite(self.2, CENTER, name, self.0)
+        }
+    }
+
+    impl Cycle for Active {
+        fn start(&self, seed: u8) -> Option<super::Frame> {
+            let range = match self {
+                Active::Dart => atlas::FLYING,
+                Active::Balloon => atlas::RISING,
+                Active::Copter => atlas::FALLING,
+                Active::Flame => atlas::FLAME,
+                Active::Shock => atlas::SPARK,
+                _ => return None
+            };
+            let skip = seed as usize % NonZero::new(range.end - range.start)?.get();
+            let mut c = range.cycle().map(|i| repeat(i).take(2)).flatten();
+            c.advance_by(skip).ok();
+            Some(Box::new(c))
         }
     }
 }
@@ -429,7 +452,7 @@ mod room {
                         display.sprite((player_position.0 - 16, player_position.1 - 32), CENTER, facing, frame)
                     );
                 }
-                for (id, item) in play.active_entries().filter(|(_, &o)| o.dynamic()) {
+                for (id, item) in play.visible_entries().filter(|(_, &o)| o.dynamic()) {
                     let frame = match item.kind {
                         object::Kind::Grease{..} if play.is_ready(id) => Some(atlas::UPRIGHT),
                         object::Kind::Grease{..} => animations.check(id.get() as u8).or(Some(atlas::TIPPED)),
@@ -441,20 +464,10 @@ mod room {
             for (id, hazard, position, is_on) in play.active_hazards() {
                 if !is_on { continue; }
                 let position: space::Point = position.into();
-                let frame = animations.check_or_else(id, |id| {
-                    let range = match hazard {
-                        Active::Dart => atlas::FLYING,
-                        Active::Balloon => atlas::RISING,
-                        Active::Copter => atlas::FALLING,
-                        Active::Flame => atlas::FLAME,
-                        Active::Shock => atlas::SPARK,
-                        _ => 0..0
-                    };
-                    let skip = id as usize % (range.end - range.start);
-                    let mut c = range.cycle().map(|i| repeat(i).take(2)).flatten();
-                    c.advance_by(skip).ok();
-                    Box::new(c)
-                });
+                let frame = match hazard {
+                    Active::Spill => id as usize, 
+                    _ => animations.check_or_else(id as u8, |id| hazard.start(id))
+                };
                 (frame, hazard, position.into()).show(display);
             }
             display.sprite((player_position.0, player_position.1 + 10), BOTTOM, facing, frame);
