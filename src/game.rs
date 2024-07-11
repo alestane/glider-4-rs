@@ -34,22 +34,27 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room
     'game: loop {
         while last.elapsed() < Duration::from_millis(33) {}
         let mut inputs = Vec::new();
+        let keys = KeyboardState::new(&context.events);
+        let left = keys.is_scancode_pressed(Scancode::Left);
+        let right = keys.is_scancode_pressed(Scancode::Right);
+        if right {inputs.push(Input::Go(Side::Right))};
+        if left {inputs.push(Input::Go(Side::Left))};
         for event in context.events.poll_iter() {
             use sdl2::event::Event;
             match event {
                 Event::Quit{..} => break 'game,
+                Event::KeyDown { scancode: Some(Scancode::Up), repeat: false, .. } => inputs.push(Input::Flip),
                 _ => ()
             }
         }
-        let keys = KeyboardState::new(&context.events);
-        if keys.is_scancode_pressed(Scancode::Right) {inputs.push(Input::Go(Side::Right))};
-        if keys.is_scancode_pressed(Scancode::Left) {inputs.push(Input::Go(Side::Left))};
+
         let result = play.frame(&inputs);
 
         match result {
             Outcome::Continue(updates) => {
                 for update in updates.into_iter().flatten() {
                     match update {
+                        Update::Turn(side) => animate_with(&animation, 0, || match side {Side::Left => Box::new((0..5).rev().map(|i| repeat(i).take(2)).flatten()), Side::Right => Box::new((0..5).map(|i| repeat(i).take(2)).flatten())}),
                         Update::Fade(inout) => animate_with(&animation, 0, || if inout {Box::new(FADE_IN.iter().cloned())} else {Box::new(FADE_OUT.iter().cloned())}),
                         Update::Burn => animate_with(&animation, 0, || Box::new(atlas::BURN.cycle()) ),
                         Update::Start(Environment::Grease, Some(bottle)) => animate_with(&animation, bottle.get() as u8, 

@@ -439,7 +439,7 @@ mod room {
         fn show<Display: Scribe>(&self, display: &mut Display) {
             let &(play, animations) = self;
             let (player_position, facing, backward) = play.player();
-            let facing = match facing {Side::Left => "glider.left", Side::Right => "glider.right"};
+            let facing = match facing {Some(Side::Left) => "glider.left", Some(Side::Right) => "glider.right", _ => "glider.turn"};
             let frame = animations.check(0).unwrap_or(if backward {atlas::TIPPED} else {atlas::LEVEL});
             if play.dark() {
                 for item in play.active_items().filter(|&o| matches!(o.kind, object::Kind::Switch(None))) {
@@ -460,6 +460,9 @@ mod room {
                     };
                     (frame, item).show(display);
                 }
+            }
+            for frame in play.debug_zones() {
+                display.fill((0, 255, 0, 100), space::Rect::from(frame).into()).ok();
             }
             for (id, hazard, position, is_on) in play.active_hazards() {
                 if !is_on { continue; }
