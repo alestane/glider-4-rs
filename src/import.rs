@@ -351,7 +351,7 @@ impl TryFrom<binary::Object> for Object {
             18 => Kind::Grease{range: amount - bounds.right(), ready},
             19 => Kind::Bonus(amount, bounds.size()),
             20 => Kind::Battery(amount),
-            21 => Kind::RubberBands(amount),
+            21 => Kind::RubberBands(amount as u8),
 
             24 => Kind::Switch(None),
             25 => Kind::Outlet{delay: amount, ready},

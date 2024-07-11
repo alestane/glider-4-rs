@@ -51,7 +51,7 @@ pub enum Kind {
     Grease{range: u16, ready: bool},
     Bonus(u16, Size),
     Battery(u16),
-    RubberBands(u16),
+    RubberBands(u8),
 
     Switch(Option<Id>),
     Outlet{delay: u16, ready: bool},
@@ -114,8 +114,20 @@ pub struct Object {
 }
 
 impl Object {
+    fn is_ready(&self) -> bool {
+        match self.kind {
+            Kind::CeilingDuct { ready, .. } |
+            Kind::Fan { ready, .. } |
+            Kind::Grease { ready, .. } |
+            Kind::Outlet { ready, .. } |
+            Kind::Shredder { ready } 
+                => ready,
+            _ => true,
+        }
+    }
+
     pub fn collidable(&self) -> bool {
-        match self.kind { Kind::Painting | Kind::Outlet { .. } | Kind::Window( .. ) | Kind::Ball{..} => false, _ => true }
+        match self.kind { Kind::Painting | Kind::Outlet { .. } | Kind::Window( .. ) | Kind::Ball{..} => false, _ => self.is_ready() }
     }
  
     pub fn active_area(&self, ready: bool) -> Option<Bounds> {
@@ -148,6 +160,7 @@ impl Object {
             Kind::Clock(..) => const{ Size::new(32, 29) },
             Kind::Battery(..) => const{ Size::new(16, 26) },
             Kind::Paper(..) => const{ Size::new(48, 21) },
+            Kind::RubberBands(..) => const{ Size::new(32, 23) },
             Kind::Switch(..) => const{ Size::new(18, 26) },
             Kind::Grease { .. } if ready => const{ Size::new(32, 29) }
             _ => None
