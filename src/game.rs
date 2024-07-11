@@ -1,7 +1,7 @@
 use sdl2::{keyboard::{KeyboardState, Scancode}, render::Texture};
-use glider::{Entrance, Input, Outcome, Room, Side, Update};
+use glider::{Entrance, Environment, Input, Outcome, Room, Side, Update};
 use crate::{atlas, draw::{Animations, Frame, Scribe, Visible}, room::{SCREEN_HEIGHT, SCREEN_WIDTH}};
-use std::{time::{Duration, Instant}, num::NonZero};
+use std::{iter::repeat, num::NonZero, time::{Duration, Instant}};
 
 const FADE_IN: &[usize] = &[3, 4, 3, 4, 5, 4, 5, 6, 5, 6, 7, 6, 7, 8, 7, 8, 9];
 const FADE_OUT: &[usize] = &[9, 8, 9, 8, 7, 8, 7, 6, 7, 6, 5, 6, 5, 4, 5, 4, 3];
@@ -52,6 +52,9 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room
                     match update {
                         Update::Fade(inout) => animate_with(&animation, 0, || if inout {Box::new(FADE_IN.iter().cloned())} else {Box::new(FADE_OUT.iter().cloned())}),
                         Update::Burn => animate_with(&animation, 0, || Box::new(atlas::BURN.cycle()) ),
+                        Update::Start(Environment::Grease, Some(bottle)) => animate_with(&animation, bottle.get() as u8, 
+                            || Box::new((atlas::TIPPING..=atlas::TIPPING).map(|i| repeat(i).take(2)).flatten())
+                        ),
                         _ => ()
                     }
                 }
