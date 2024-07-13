@@ -1,7 +1,11 @@
 use cart::Transfer;
+use motion::Motion;
 
 use super::{*, cart::{Rise, Span}};
-use std::num::NonZero;
+use std::{num::NonZero, ops::Range};
+
+#[path = "motion.rs"]
+mod motion;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -31,7 +35,7 @@ impl From<self::Id> for Option<u16> {
     fn from(value: self::Id) -> Self { Some(value.0.get()) }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Kind {
     Table{width: NonZero<u16>},
     Shelf{width: NonZero<u16>},
@@ -40,38 +44,50 @@ pub enum Kind {
     Exit{to: Option<room::Id>},
     Obstacle(Size),
 
+    Dart,
+    Copter,
+    Balloon,
+
     FloorVent{height: u16},
     CeilingVent{height: u16},
     CeilingDuct{height: u16, ready: bool, destination: Option<room::Id>},
     Candle{height: u16},
+    Flame,
     Fan{faces: Side, range: u16, ready: bool},
 
     Clock(u16),
     Paper(u16),
     Grease{range: u16, ready: bool},
+    Spill{progress: Range<i32>, ready: bool},
     Bonus(u16, Size),
     Battery(u16),
     RubberBands(u8),
-
+    
     Switch(Option<Id>),
     Outlet{delay: u16, ready: bool},
+    Shock{progress: Range<i32>},
     Thermostat,
     Shredder{ready: bool},
     Guitar,
-
+    
     Drip{range: u16},
+    Drop(Motion),
     Toaster{range: u16, delay: u16},
-    Ball{range: u16},
+    Toast(Motion),
+    Bounce{range: u16},
+    Ball(Motion),
     Fishbowl{range: u16, delay: u16},
+    Fish(Motion),
     Teakettle{delay: u16},
+    Steam{progress: Range<i32>},
     Window(Size, bool),
-
+    
     Painting,
     Mirror(Size),
     Basket,
     Macintosh,
     Stair(Vertical, room::Id),
-
+    
     Wall(Side),
 }
 
@@ -79,16 +95,22 @@ impl Kind {
     pub(super) const fn anchor(&self) -> (Span, Rise) {
         type Is = Kind;
         match self {
+            Is::Spill{..} 
+                => (Span::Left, Rise::Top),
+            Is::Steam{..} 
+                => (Span::Right, Rise::Bottom),
             Is::Table{..} | Is::Shelf {..} |
             Is::CeilingVent{..} | Is::CeilingDuct{ready: false, ..} | 
-            Is::Drip{..} |
+            Is::Drip{..} | Is::Drop(..) |
             Is::Stair(Vertical::Up, ..)
                 => (Span::Center, Rise::Top),
             Is::Exit{..} |
             Is::Painting{..} | Is::Mirror(..) | Is::Window(..) |
             Is::Bonus(..) |
             Is::Switch(..) | Is::Thermostat |
-            Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..)
+            Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..) |
+            Is::Dart | Is::Copter | Is::Balloon | Is::Flame | Is::Shock{..} | 
+            Is::Toast(..) | Is::Fish(..) | Is::Ball(..)
                 => (Span::Center, Rise::Center),
             Is::Fan{faces, ..} 
                 => (Span::from(-faces), Rise::Center),
@@ -97,7 +119,7 @@ impl Kind {
             Is::Grease{..} |
             Is::RubberBands(..) | Is::Clock(..) | Is::Paper(..) | Is::Battery(..) |
             Is::Guitar |
-            Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | Is::Ball{..} |
+            Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | Is::Bounce{..} |
             Is::Books | Is::Basket | Is::Macintosh | 
             Is::CeilingDuct {ready: true, ..}
                 => (Span::Center, Rise::Bottom),
@@ -107,7 +129,7 @@ impl Kind {
 }
 
 #[disclose]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Object {
     kind: Kind,
     position: Position,

@@ -283,16 +283,18 @@ impl object::Kind {
             Is::Painting{..} | Is::Mirror(..) | Is::Window(..) |
             Is::Bonus(..) |
             Is::Switch(..) | Is::Thermostat |
-            Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..)
+            Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..) |
+            Is::Dart | Is::Copter | Is::Balloon
                 => (Span::Center, Rise::Center),
             Is::Stair(..) |
             Is::CeilingVent{..} | Is::CeilingDuct{..} | Is::Fan{..} | Is::Candle{..} |
             Is::Grease{..} |
             Is::RubberBands(..) | Is::Clock(..) | Is::Paper(..) | Is::Battery(..) |
             Is::Guitar |
-            Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | Is::Ball{..} |
+            Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | Is::Bounce{..} |
             Is::Books | Is::Basket | Is::Macintosh | Is::Wall(..) 
                 => (Span::Center, Rise::Bottom),
+            _ => (Span::Center, Rise::Center)
         }
     }
 }
@@ -362,7 +364,7 @@ impl TryFrom<binary::Object> for Object {
 
             32 => Kind::Drip{range: amount - bounds.top()},
             33 => Kind::Toaster{range: bounds.top() - amount, delay: extra},
-            34 => Kind::Ball{range: bounds.bottom() - amount},
+            34 => Kind::Bounce{range: bounds.bottom() - amount},
             35 => Kind::Fishbowl{range: bounds.y() - amount, delay: extra},
             36 => Kind::Teakettle{delay: amount},
             37 => Kind::Window(bounds.size(), ready),
@@ -376,7 +378,8 @@ impl TryFrom<binary::Object> for Object {
 
             bad => return Err( BadObjectError::UnknownKind(bad) )
         };
-        Ok(Object{kind, position: bounds * kind.display_anchor()})
+        let anchor = kind.display_anchor();
+        Ok(Object{kind, position: bounds * anchor})
         
     }
 
