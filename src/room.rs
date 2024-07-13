@@ -87,6 +87,14 @@ impl Index<Side> for Exits {
     }
 }
 
+impl Exits {
+    pub fn walls(&self) -> impl SliceIndex<[Object], Output=[Object]> {
+        fn step(i: Option<room::Id>) -> usize { i.is_some() as usize }
+
+        step(self.left)..=(2 - step(self.right))
+    }
+}
+
 #[disclose]
 #[derive(Debug)]
 pub struct Room {
@@ -128,11 +136,7 @@ impl<'a> TryFrom<(NonZero<u16>, &'a [u8])> for Room {
 }
 
 impl Room {
-    pub fn walls(&self) -> impl SliceIndex<[Object], Output=[Object]> {
-        fn step(i: Option<room::Id>) -> usize { i.is_some() as usize }
-
-        step(self.exits.left)..=(2 - step(self.exits.right))
-    }
+    pub fn walls(&self) -> impl SliceIndex<[Object], Output=[Object]> { self.exits.walls() }
 
     pub fn len(&self) -> usize { self.objects.len() }
     
