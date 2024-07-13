@@ -45,6 +45,7 @@ pub enum Active {
     Toast,
     Shock,
     Spill,
+    Drop,
 }
 
 
