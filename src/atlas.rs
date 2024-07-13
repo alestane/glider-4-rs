@@ -91,10 +91,10 @@ const ITEMS: [Rect; 99] = [
     Rect::new_signed(144, 202, 160, 214),
     Rect::new_signed(144, 215, 160, 227),
 
+    Rect::new_signed(192, 42, 208, 55),
     Rect::new_signed(192, 0, 208, 13),      // drip
     Rect::new_signed(192, 14, 208, 27),
     Rect::new_signed(192, 28, 208, 41),
-    Rect::new_signed(192, 42, 208, 55),
     Rect::new_signed(192, 56, 208, 70),
 
     Rect::new_signed(112, 76, 144, 108),    // basketball
@@ -183,7 +183,7 @@ const CANDLE_FLAME  : Range<usize> = 67..70;
 pub const FLAME     : Range<usize> = 0..3;
 
 const WATER_DRIP    : Range<usize> = 70..75;
-pub const STILL_DRIP: usize = 3;
+pub const STILL_DRIP: usize = 0;
 pub const DRIP      : Range<usize> = 0..5;
 
 const BASKETBALL    : Range<usize> = 75..76;
