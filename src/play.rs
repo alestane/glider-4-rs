@@ -511,7 +511,7 @@ const BOUNDS: [Object; 3] = [
         }; 
         self.motion = motion;
         self.player += <(i16, i16)>::from(motion);
-        if let Some((room::Id(to), out)) = match self.player.x() {..-12 => Some(Side::Left), 489.. => Some(Side::Right), _ => None}.and_then(|s| self.room[s].zip(Some(s))) {
+        if let Some((room::Id(to), out)) = match self.player.x() {..-12 => Some(Side::Left), 489.. => Some(Side::Right), _ => None}.and_then(|s| self.exits[s].zip(Some(s))) {
             return Outcome::Leave{score: self.score, destination: Some((to, Entrance::Flying(-out, self.player.y() as u16)))}
         };
         Outcome::Continue(events)
