@@ -261,11 +261,13 @@ fn id() -> u8 {
     id
 }
 
-const PLAYER_SIZE: Size = unsafe{ Size::new_unchecked(28, 10) };
+const PLAYER_SIZE: Size = const{ Size::new(28, 10).unwrap() };
+
 
 pub struct Play<'a> {
     room: &'a Room,
     walls: &'a [Object],
+
     score: u32,
     items: BTreeSet<object::Id>,
     facing: Side,
