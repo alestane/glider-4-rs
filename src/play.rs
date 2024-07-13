@@ -48,6 +48,7 @@ struct Obstacle {
     position: Reference,
     period: Range<i32>,
     is_on: bool,
+    velocity: i32,
     control: Option<object::Id>
 }
 impl Active {
@@ -57,6 +58,7 @@ impl Active {
 			position: if let Some(start) = self.start() {start} else {return None},
 			period: Self::period(delay),
 			is_on: true,
+            velocity: 0,
             control: None,
             })
     }
@@ -81,6 +83,7 @@ impl Obstacle {
 			Active::Balloon => const{ Size::new(32, 32).unwrap() },
 			Active::Flame => const{ Size::new(11, 12).unwrap() },
             Active::Shock => const{ Size::new(32, 25).unwrap() },
+            Active::Drop => return Some(const{ Size::new(16, 14).unwrap() } / (Span::Center, Rise::Top) << (self.position + (0, self.period.start as i16 / 32)).as_unsigned()),
             Active::Spill 
                 => return Size::new(self.period.start.max(0) as u16, 2)
                 .map(|size| (size / (Span::Left, Rise::Bottom) << self.position.as_unsigned())),
@@ -89,12 +92,10 @@ impl Obstacle {
         Some((size / (Span::Center, Rise::Center) << self.position).as_unsigned())
 	} 
 	fn advance(&mut self, parent_ready: bool) {
-        if let Active::Spill = self.kind {
-            if self.is_on {eprintln!("Grease spill out to {}", self.period.start);}
-        }
         match self.kind {
             Active::Spill if !self.is_on => return,
             Active::Shock if !parent_ready => return,
+            Active::Drop if self.period.start >= 0 => {self.velocity += 12; self.period.advance_by(self.velocity as usize).ok().or_else(|| {self.velocity = 0; self.period.start = -8; None});}
             _ if self.period.next().is_some() => return,
             Active::Shock if self.is_on => {self.period.start = 0; self.is_on = false; }
             Active::Shock => {self.period.start = self.period.end - 30; self.is_on = true; }
@@ -132,6 +133,7 @@ impl Object {
                 period: 0..0,
                 position: self.position.as_signed() - (3, 27),
                 is_on: true,
+                velocity: 0, 
                 control: this.into(),
             },
             object::Kind::Outlet { delay, .. } => Obstacle { 
@@ -139,6 +141,7 @@ impl Object {
                 position: self.position.as_signed(), 
                 period: 0..(delay as i32), 
                 is_on: false,
+                velocity: 0, 
                 control: this.into() 
             },
             object::Kind::Grease { range, .. } => Obstacle{
@@ -146,6 +149,15 @@ impl Object {
                 position: self.active_area(true).unwrap().as_signed() * (Span::Right, Rise::Bottom) - (0, 1),
                 period: -3..(range as i32 + 1),
                 is_on: false,
+                velocity: 0,
+                control: this.into(),
+            },
+            object::Kind::Drip { range } => Obstacle{
+                kind: Active::Drop,
+                position: self.position.as_signed(),
+                period: -8..(range as i32 * 32 + 1),
+                is_on: true,
+                velocity: 0, 
                 control: this.into(),
             },
             _ => return None
@@ -245,7 +257,7 @@ impl std::cmp::Ord for State {
 fn id() -> u8 {
     static mut NEXT: NonZero<u8> = unsafe { NonZero::new_unchecked(73) };
     let id = unsafe { NEXT.get() };
-    unsafe { NEXT = NonZero::new(id.wrapping_add(73)).unwrap_or(NonZero::new_unchecked(73) ) };
+    unsafe { NEXT = NonZero::new(id.wrapping_add(73)).unwrap_or(const{ NonZero::new(73).unwrap() } ) };
     id
 }
 
@@ -295,6 +307,7 @@ impl Room {
 
     pub fn start(&self, from: Entrance) -> Play {
         let ((x, y), facing) = self.enter_at(from);
+        eprintln!("{}", self.name);
         for o in &self.objects {
         	eprintln!("{o:?}");
         }
@@ -433,8 +446,6 @@ const BOUNDS: [Object; 3] = [
             }
         } else { None };
 
-        if let Some(state) = &self.now {eprintln!("{state:?}");}
-
         if let (Some((motion, _)), Some(State::Ascending(..))) = (control, &self.now) {
             eprintln!("Asc: {motion:?}");
         }
@@ -543,10 +554,15 @@ const BOUNDS: [Object; 3] = [
     } 
 
     pub fn active_hazards(&self) -> impl Iterator<Item = (u16, Active, (i16, i16), bool)> + '_ {
-        self.hazards.iter().map(|(&id, Obstacle{kind, position, is_on, period, ..})| {(
+        self.hazards.iter().map(|(&id, Obstacle{kind, mut position, is_on, period, ..})| {
+        if let Active::Drop = kind { 
+            *position.y_mut() += period.start as i16 / 32;
+            eprintln!("{position:?}");
+        } 
+        (
             if let Active::Spill = kind {0u16.saturating_add_signed(period.start as i16)} else {id as u16}, 
             *kind, 
-            <(i16, i16)>::from(*position), 
+            <(i16, i16)>::from(position), 
             *is_on
         )})
     }
