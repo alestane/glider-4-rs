@@ -71,6 +71,23 @@ pub(crate) struct On {
 }
 
 #[disclose]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Exits {
+    left: Option<Id>,
+    right: Option<Id>,
+}
+
+impl Index<Side> for Exits {
+    type Output = Option<Id>;
+    fn index(&self, index: Side) -> &Self::Output {
+        match index {
+            Side::Left => &self.left,
+            Side::Right => &self.right,
+        }
+    }
+}
+
+#[disclose]
 #[derive(Debug)]
 pub struct Room {
     name: String,
