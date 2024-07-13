@@ -125,6 +125,7 @@ mod object {
                 // Is::Switch(Some(..)) => ("power", atlas::TOGGLE),
                 Is::Switch(None) => ("power", atlas::SWITCH, CENTER),
                 Is::Outlet{..} => ("power", atlas::OUTLET, CENTER),
+                Is::Drip {..} => ("water", atlas::STILL_DRIP, TOP),
                 Is::Macintosh => ("visual", atlas::COMPUTER, BOTTOM),
                 Is::Books => ("visual", atlas::BOOKS, BOTTOM),
                 Is::Painting => ("visual", atlas::PAINTING, CENTER),
@@ -219,7 +220,7 @@ mod object {
                     Rect::new(bounds.left() - 15, bounds.top(), bounds.width() + 15, bounds.height() + 15)
                 );
             }
-            display.outline_rect(bounds, BROWN);
+            display.outline_rect(bounds, BROWN)?;
             0
         };
         let panels = bounds.width().max(48) / 48;
@@ -229,11 +230,11 @@ mod object {
             display.pen(
                 BROWN_LT,
                 &[(bounds.left(), bounds.top()), (bounds.left(), bounds.bottom()), (bounds.right(), bounds.bottom())]
-            );
+            )?;
             display.pen(
                 BLACK,
                 &[(bounds.right(), bounds.bottom()), (bounds.right(), bounds.top()), (bounds.left(), bounds.top())]
-            );
+            )?;
         }
         Ok(())
     }
@@ -275,7 +276,7 @@ mod object {
         let height = casing.height() / 2 + 2;
         {
             let pane = Rect::new(casing.left(), casing.top() + height as i32, casing.width(), casing.height() - height);
-            display.fill(BLACK, pane);
+            display.fill(BLACK, pane)?;
             let pane = Rect::new(casing.left(), casing.top() + if is_open {26} else {height as i32 - 4}, casing.width(), height);
             display.outline_rect(pane, BROWN)?;
             let pane = Rect::new(pane.left() + 6, pane.top() + 6, pane.width() - 12, pane.height() - 12);
@@ -382,6 +383,7 @@ mod hazard {
                 Active::Copter => "copter",
                 Active::Flame => "fire",
                 Active::Shock => "power", 
+                Active::Drop => "water",
                 Active::Spill => return { display.fill(BLACK, Rect::new(self.2.0 as i32, self.2.1 as i32, self.0 as u32, 3)).ok();},
                 _ => return
             };
@@ -397,6 +399,7 @@ mod hazard {
                 Active::Copter => atlas::FALLING,
                 Active::Flame => atlas::FLAME,
                 Active::Shock => atlas::SPARK,
+                Active::Drop => atlas::DRIP,
                 _ => return None
             };
             let skip = seed as usize % NonZero::new(range.end - range.start)?.get();
@@ -462,7 +465,7 @@ mod room {
                 }
             }
             for frame in play.debug_zones() {
-                display.fill((0, 255, 0, 100), space::Rect::from(frame).into()).ok();
+                // display.fill((0, 255, 0, 100), space::Rect::from(frame).into()).ok();
             }
             for (id, hazard, position, is_on) in play.active_hazards() {
                 if !is_on { continue; }
