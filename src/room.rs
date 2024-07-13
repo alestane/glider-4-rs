@@ -93,9 +93,8 @@ pub struct Room {
     name: String,
     back_pict_id: u16,
     tile_order: [u8; 8],
-    left_open: Option<Id>,
-    right_open: Option<Id>,
-    animate: Option<(Active, NonZero<u16>, u32)>,
+    exits: Exits,
+        animate: Option<(Active, NonZero<u16>, u32)>,
     environs: On,
     objects: Vec<Object>,
 }
@@ -132,7 +131,7 @@ impl Room {
     pub fn walls(&self) -> impl SliceIndex<[Object], Output=[Object]> {
         fn step(i: Option<room::Id>) -> usize { i.is_some() as usize }
 
-        step(self.left_open)..=(2 - step(self.right_open))
+        step(self.exits.left)..=(2 - step(self.exits.right))
     }
 
     pub fn len(&self) -> usize { self.objects.len() }
@@ -142,5 +141,5 @@ impl Room {
         
 impl std::ops::Index<Side> for Room {
 	type Output = Option<room::Id>;
-	fn index(&self, which: Side) -> &Self::Output { match which {Side::Left=>&self.left_open, Side::Right=>&self.right_open} }
+	fn index(&self, which: Side) -> &Self::Output { &self.exits[which] }
 }

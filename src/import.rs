@@ -1,7 +1,7 @@
 use std::{fmt::Display, num::NonZero, time::{Duration, SystemTime}};
 
 use super::{*,
-    room::Room, 
+    room::{Exits, Room}, 
     object::Object, 
     house::House,
     cart::{Rise, Span},
@@ -418,6 +418,15 @@ impl From<EnemyCode> for Option<room::Active> {
     }
 }
 
+impl From<(room::Id, [u8; 2])> for Exits {
+    fn from((id, open): (room::Id, [u8; 2])) -> Self {
+        Self {
+            left: NonZero::new(open[0]).and_then(|_| id.prev()),
+            right: NonZero::new(open[1]).and_then(|_| id.next()),
+        }
+    }
+}
+
 impl<T: TryInto<binary::Room>> TryFrom<(room::Id, T)> for Room where InvalidRoomError: From<<T as TryInto<binary::Room>>::Error> {
     type Error = InvalidRoomError;
     fn try_from((id, value): (room::Id, T)) -> Result<Self, Self::Error> {
@@ -431,8 +440,7 @@ impl<T: TryInto<binary::Room>> TryFrom<(room::Id, T)> for Room where InvalidRoom
             name: string_from_pascal(&header.name),
             back_pict_id: u16::from_be_bytes(header.back_pict_id),
             tile_order: header.tile_order.map(|[_, n]| n),
-            left_open: NonZero::new(header.left_right_open[0]).and_then(|_| id.prev()),
-            right_open: (header.left_right_open[1] != 0).then_some(()).and_then(|_| id.next()),
+            exits: (id, header.left_right_open).into(),
             animate: NonZero::new(u16::from_be_bytes(header.animate_number))
                 .zip(EnemyCode(u16::from_be_bytes(header.animate_kind)).into())
                 .map(|(n, kind)| (kind, n, u32::from_be_bytes(header.animate_delay))),
