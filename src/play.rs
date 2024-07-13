@@ -267,7 +267,7 @@ const PLAYER_SIZE: Size = const{ Size::new(28, 10).unwrap() };
 pub struct Play<'a> {
     room: &'a Room,
     walls: &'a [Object],
-
+    exits: room::Exits,
     score: u32,
     items: BTreeSet<object::Id>,
     facing: Side,
@@ -326,6 +326,7 @@ impl Room {
         Play {
             room: self,
             walls: &BOUNDS[self.walls()],
+            exits: self.exits,
             score: 0,
             items: BTreeSet::from_iter(self.collider_ids()),
             facing,
