@@ -162,7 +162,8 @@ impl Object {
             Kind::Paper(..) => const{ Size::new(48, 21) },
             Kind::RubberBands(..) => const{ Size::new(32, 23) },
             Kind::Switch(..) => const{ Size::new(18, 26) },
-            Kind::Grease { .. } if ready => const{ Size::new(32, 29) }
+            Kind::Grease {..} if ready => const{ Size::new(32, 29) },
+            Kind::Drip {..} => const{ Size::new(16, 13) },
             _ => None
         } }?;
         Some((size / anchor << position).as_unsigned())
