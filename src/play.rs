@@ -265,6 +265,7 @@ const PLAYER_SIZE: Size = unsafe{ Size::new_unchecked(28, 10) };
 
 pub struct Play<'a> {
     room: &'a Room,
+    walls: &'a [Object],
     score: u32,
     items: BTreeSet<object::Id>,
     facing: Side,
@@ -322,6 +323,7 @@ impl Room {
         );
         Play {
             room: self,
+            walls: &BOUNDS[self.walls()],
             score: 0,
             items: BTreeSet::from_iter(self.collider_ids()),
             facing,
@@ -464,14 +466,13 @@ const BOUNDS: [Object; 3] = [
             (motion, true)
         };
         let events = if collision {
-            let walls = &BOUNDS[self.room.walls()];
             if let Ok(touch) = Bounds::try_from(PLAYER_SIZE / (Span::Center, Rise::Center) << self.player) {
                 let active = BTreeMap::from_iter(self.hazards.iter().map(|(&id, o)| (id, o.control.is_none_or(|parent| self.is_ready(parent)))));
                 for (id, hazard) in self.hazards.iter_mut() { 
                     hazard.advance(active[id]); 
                 }
                 let objects = 
-                self.active_entries().map(|(id, o)| (Some(id), o)).chain(walls.iter().map(|w| (None, w)))
+                self.active_entries().map(|(id, o)| (Some(id), o)).chain(self.walls.iter().map(|w| (None, w)))
                     .map(|(i, o)| (i.unwrap_or(u16::MAX.into()), o, &*self)).collect::<Vec<_>>();
                 let actions = objects.iter().map(|o| o as &dyn Incident)
                     .chain(self.hazards.values().map(|h| h as &dyn Incident))
