@@ -147,3 +147,10 @@ impl std::ops::Index<Side> for Room {
 	type Output = Option<room::Id>;
 	fn index(&self, which: Side) -> &Self::Output { &self.exits[which] }
 }
+
+impl IntoIterator for Room {
+    type Item = Object;
+    type IntoIter = <Vec<Object> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter { self.objects.into_iter() }
+}
