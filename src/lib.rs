@@ -11,7 +11,7 @@ extern crate disclose;
 
 use std::{
     // num::NonZero, 
-    ops::{Mul, Neg}, 
+    ops::{Mul, Neg, Range}, 
     // time::{Duration, SystemTime}
 };
 
@@ -23,7 +23,6 @@ mod prelude {
         Input, Outcome, Success, Side, Vertical, Environment, Update, 
         Bounds, Position, Size, cart::{Span, Rise, Rect, Point},
         Object, Room, House, 
-        room::Active,
     };
     pub mod room {
     	pub use crate::room::{SCREEN_WIDTH, SCREEN_HEIGHT, VERT_CEILING, VERT_FLOOR};
@@ -50,6 +49,7 @@ mod cart;
 
 pub type Bounds = cart::Rect<i16>;
 pub type Position = cart::Point<i16>;
+pub type Interval = Range<i16>;
 pub type Reference = cart::Point<i16>;
 pub type Displacement = cart::Displacement<i16>;
 pub type Size = cart::Size<u16>;
