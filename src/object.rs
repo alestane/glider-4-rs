@@ -1,8 +1,7 @@
-use cart::Transfer;
-use motion::Motion;
+pub use motion::Motion;
 
 use super::{*, cart::{Rise, Span}};
-use std::{num::NonZero, ops::Range};
+use std::num::NonZero;
 
 #[path = "motion.rs"]
 mod motion;
@@ -44,9 +43,9 @@ pub enum Kind {
     Exit{to: Option<room::Id>},
     Obstacle(Size),
 
-    Dart,
-    Copter,
-    Balloon,
+    Dart(Interval),
+    Copter(Interval),
+    Balloon(Interval),
 
     FloorVent{height: u16},
     CeilingVent{height: u16},
@@ -58,14 +57,14 @@ pub enum Kind {
     Clock(u16),
     Paper(u16),
     Grease{range: u16, ready: bool},
-    Spill{progress: Range<i32>, ready: bool},
+    Spill{progress: Interval},
     Bonus(u16, Size),
     Battery(u16),
     RubberBands(u8),
     
     Switch(Option<Id>),
     Outlet{delay: u16, ready: bool},
-    Shock{progress: Range<i32>},
+    Shock{progress: Interval},
     Thermostat,
     Shredder{ready: bool},
     Guitar,
@@ -79,7 +78,7 @@ pub enum Kind {
     Fishbowl{range: u16, delay: u16},
     Fish(Motion),
     Teakettle{delay: u16},
-    Steam{progress: Range<i32>},
+    Steam{progress: Interval},
     Window(Size, bool),
     
     Painting,
@@ -109,7 +108,7 @@ impl Kind {
             Is::Bonus(..) |
             Is::Switch(..) | Is::Thermostat |
             Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..) |
-            Is::Dart | Is::Copter | Is::Balloon | Is::Flame | Is::Shock{..} | 
+            Is::Dart(..) | Is::Copter(..) | Is::Balloon(..) | Is::Flame | Is::Shock{..} | 
             Is::Toast(..) | Is::Fish(..) | Is::Ball(..)
                 => (Span::Center, Rise::Center),
             Is::Fan{faces, ..} 
@@ -148,22 +147,31 @@ impl Object {
         }
     }
 
+    pub fn is_animated(&self) -> bool {
+        match self.kind {
+            Kind::Ball(..) | Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..) | Kind::Drop(..) |
+            Kind::Fish(..) | Kind::Shock{..} | Kind::Spill{..} | Kind::Steam{..} | Kind::Toast(..)
+                => true,
+            _ => false,
+        }
+    }
+
     pub fn collidable(&self) -> bool {
         match self.kind { Kind::Painting | Kind::Outlet { .. } | Kind::Window( .. ) | Kind::Ball{..} => false, _ => self.is_ready() }
     }
  
-    pub fn active_area(&self, ready: bool) -> Option<Bounds> {
+    pub fn active_area(&self) -> Option<Bounds> {
         let mut position = self.position;
         let mut anchor = self.kind.anchor();
         let size = unsafe{ match self.kind {
             Kind::FloorVent { height } | Kind::Candle {height} => Size::new(16, height.max(1)),
             Kind::CeilingVent { height } => Size::new(16, height),
-            Kind::CeilingDuct { height, .. } if ready => Size::new(16, height),
+            Kind::CeilingDuct { height, ready: true, .. } => Size::new(16, height),
             Kind::CeilingDuct{..} => {
                 anchor.1 = Rise::Bottom;
                 const{ Size::new(48, 13) }
             }
-            Kind::Fan{faces, range, ..} if ready => {
+            Kind::Fan{faces, range, ready: true} => {
                 match faces {
                     Side::Left => *position.x_mut() -= 17,
                     Side::Right => *position.x_mut() += 17,
@@ -184,7 +192,7 @@ impl Object {
             Kind::Paper(..) => const{ Size::new(48, 21) },
             Kind::RubberBands(..) => const{ Size::new(32, 23) },
             Kind::Switch(..) => const{ Size::new(18, 26) },
-            Kind::Grease {..} if ready => const{ Size::new(32, 29) },
+            Kind::Grease {ready: true, ..} => const{ Size::new(32, 29) },
             Kind::Drip {..} => const{ Size::new(16, 13) },
             _ => None
         } }?;

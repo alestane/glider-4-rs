@@ -34,35 +34,6 @@ impl Id {
     pub fn next(&self) -> Option<Id> { Some(Id(self.0.checked_add(1)?)) }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Active {
-    Dart,
-    Copter,
-    Balloon,
-    Flame,
-    Fish,
-    Ball,
-    Toast,
-    Shock,
-    Spill,
-    Drop,
-}
-
-
-impl From<object::Kind> for Option<Active> {
-    fn from(value: object::Kind) -> Self {
-        Some(match value {
-            object::Kind::Candle { .. } => Active::Flame,
-            object::Kind::Fishbowl { .. } => Active::Fish,
-            object::Kind::Ball{ .. } => Active::Ball,
-            object::Kind::Toaster { .. } => Active::Toast,
-            object::Kind::Outlet { .. } => Active::Shock,
-            object::Kind::Grease { .. } => Active::Spill,
-            _ => return None
-        })
-    }
-} 
-
 #[disclose]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct On {
@@ -102,7 +73,7 @@ pub struct Room {
     back_pict_id: u16,
     tile_order: [u8; 8],
     exits: Exits,
-        animate: Option<(Active, NonZero<u16>, u32)>,
+    animate: Option<(NonZero<u16>, object::Kind)>,
     environs: On,
     objects: Vec<Object>,
 }

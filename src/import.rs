@@ -284,7 +284,7 @@ impl object::Kind {
             Is::Bonus(..) |
             Is::Switch(..) | Is::Thermostat |
             Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..) |
-            Is::Dart | Is::Copter | Is::Balloon
+            Is::Dart(..) | Is::Copter(..) | Is::Balloon(..)
                 => (Span::Center, Rise::Center),
             Is::Stair(..) |
             Is::CeilingVent{..} | Is::CeilingDuct{..} | Is::Fan{..} | Is::Candle{..} |
@@ -407,15 +407,15 @@ impl From<std::convert::Infallible> for InvalidRoomError {
     }
 }
 
-struct EnemyCode(u16);
+struct EnemyCode(u16, i16);
 
-impl From<EnemyCode> for Option<room::Active> {
+impl From<EnemyCode> for Option<object::Kind> {
     fn from(value: EnemyCode) -> Self {
-        type Use = room::Active;
+        type Use = object::Kind;
         Some(match value.0 {
-            0 => Use::Dart,
-            1 => Use::Copter,
-            2 => Use::Balloon,
+            0 => Use::Dart(0..value.1),
+            1 => Use::Copter(0..value.1),
+            2 => Use::Balloon(0..value.1),
             _ => return None,
         })
     }
@@ -445,8 +445,7 @@ impl<T: TryInto<binary::Room>> TryFrom<(room::Id, T)> for Room where InvalidRoom
             tile_order: header.tile_order.map(|[_, n]| n),
             exits: (id, header.left_right_open).into(),
             animate: NonZero::new(u16::from_be_bytes(header.animate_number))
-                .zip(EnemyCode(u16::from_be_bytes(header.animate_kind)).into())
-                .map(|(n, kind)| (kind, n, u32::from_be_bytes(header.animate_delay))),
+                .zip(EnemyCode(u16::from_be_bytes(header.animate_kind), u32::from_be_bytes(header.animate_delay) as i16).into()),
             environs: On {air: header.condition_code[1] != 1, lights: header.condition_code[1] != 2},
             objects: value.objects.into_iter().filter_map(|o| o.try_into().ok()).collect(),
         })

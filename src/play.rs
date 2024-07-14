@@ -1,10 +1,9 @@
-use crate::{Environment, Position, Reference, Displacement, Size, Bounds, Update, Vertical, cart::{Rise, Span, Transfer}};
+use crate::{Environment, Position, Reference, Displacement, Size, Bounds, Update, Vertical, cart::{Rise, Span}};
 
-use super::{Input, Outcome, object::{self, Object, Kind}, room::{self, On, Room, Active}, Side};
-use std::{collections::{BTreeMap, BTreeSet, HashMap}, iter::from_fn, num::NonZero, ops::Range};
+use super::{Input, Outcome, object::{self, Object, Kind, Motion}, room::{self, On, Room}, Side};
+use std::{collections::{BTreeMap, BTreeSet}, iter::from_fn, ops::Range};
 
-
-fn random() -> u16 {
+fn random() -> i16 {
 	use std::sync::LazyLock;
 	use random::Source;
 	static mut RAND: LazyLock<std::cell::RefCell<random::Default>> = LazyLock::new(|| std::cell::RefCell::new(random::default(
@@ -13,9 +12,7 @@ fn random() -> u16 {
 			Err(wrong) => wrong.duration(),
 		}.as_secs()
 	)));
-    loop {
-	    if let result@41.. = unsafe { RAND.borrow_mut().read::<u16>() } { break result }
-    }
+    unsafe { RAND.borrow_mut().read::<i16>() } 
 }
 
 const MAX_THRUST: i16 = 5;
@@ -42,123 +39,53 @@ impl Entrance {
     }
 }
 
-#[derive(Debug, Clone)]
-struct Obstacle {
-    kind: Active,
-    position: Reference,
-    period: Range<i32>,
-    is_on: bool,
-    velocity: i32,
-    control: Option<object::Id>
-}
-impl Active {
-    fn new(&self, delay: u32) -> Option<Obstacle> {
-        Some(Obstacle {
-            kind: *self,
-			position: if let Some(start) = self.start() {start} else {return None},
-			period: Self::period(delay),
-			is_on: true,
-            velocity: 0,
-            control: None,
-            })
-    }
-	fn start(&self) -> Option<Reference> {
-		Some(match self {
-            Self::Dart => (544, (random() % 150) as i16 + 11),
-			Self::Balloon => ((random() % 400)  as i16 + 50, 358),
-            Self::Copter => ((random() % 256) as i16 + 272, -16),
-			_ => return None
-        }.into())
-    }
-	fn period(delay: u32) -> Range<i32> {
-		let delay = delay as i32;
-		(delay - (random() as i32 % (delay + 60) + 30))..delay
+impl object::Kind {
+    fn new(&self, delay: i16) -> Option<Object> {
+        let (kind, position) = match self {
+            Self::Dart(Range{end, ..}) => (Self::Dart(-delay..*end), (544, random() % 150 + 11)),
+            Self::Copter(Range{end, ..}) => (Self::Copter(-delay..*end), (random() % 256 + 272, -16)),
+            Self::Balloon(Range{end, ..}) => (Self::Balloon(-delay..*end), (random() % 400 + 50, 358)),
+            _ => return None,
+        };
+        Some(Object{kind, position: position.into()})
     }
 }
-impl Obstacle {
+impl Object {
 	fn bounds(&self) -> Option<Bounds> {
 		let size = match self.kind {
-            Active::Dart => const{ Size::new(64, 22).unwrap() },
-            Active::Copter => const{ Size::new(32, 32).unwrap() },
-			Active::Balloon => const{ Size::new(32, 32).unwrap() },
-			Active::Flame => const{ Size::new(11, 12).unwrap() },
-            Active::Shock => const{ Size::new(32, 25).unwrap() },
-            Active::Drop => return Some(const{ Size::new(16, 14).unwrap() } / (Span::Center, Rise::Top) << (self.position + (0, self.period.start as i16 / 32))),
-            Active::Spill 
-                => return Size::new(self.period.start.max(0) as u16, 2)
+            Kind::Dart(..) => const{ Size::new(64, 22).unwrap() },
+            Kind::Copter(..) => const{ Size::new(32, 32).unwrap() },
+			Kind::Balloon(..) => const{ Size::new(32, 32).unwrap() },
+			Kind::Flame => const{ Size::new(11, 12).unwrap() },
+            Kind::Shock{..} => const{ Size::new(32, 25).unwrap() },
+            Kind::Drop(ref progress) => return Some(const{ Size::new(16, 14).unwrap() } / (Span::Center, Rise::Top) << (self.position + (0, progress.value() / 32))),
+            Kind::Spill{ref progress} 
+                => return Size::new(progress.start.max(0) as u16, 2)
                 .map(|size| (size / (Span::Left, Rise::Bottom) << self.position)),
 			_ => return None
 		};
         Some(size / (Span::Center, Rise::Center) << self.position)
 	} 
-	fn advance(&mut self, parent_ready: bool) {
-        match self.kind {
-            Active::Spill if !self.is_on => return,
-            Active::Shock if !parent_ready => return,
-            Active::Drop if self.period.start >= 0 => {self.velocity += 12; self.period.advance_by(self.velocity as usize).ok().or_else(|| {self.velocity = 0; self.period.start = -8; None});}
-            _ if self.period.next().is_some() => return,
-            Active::Shock if self.is_on => {self.period.start = 0; self.is_on = false; }
-            Active::Shock => {self.period.start = self.period.end - 30; self.is_on = true; }
-            Active::Dart | Active::Balloon | Active::Copter => {
-                self.position += match self.kind {
-                    Active::Dart => (-8, 1),
-                    Active::Balloon => (0, -3),
-                    Active::Copter => (-4, 2),
-                    _ => unreachable!(),
-                };
-                if let None = self.bounds() & room::BOUNDS { self.reset(); }
-            }
-            #[cfg(debug_assertions)]
-            _ => return
-        };
-	} 
-	fn reset(&mut self) {
-		let delay = self.period.end;
-		match (self.kind, self.kind.start()) {
-			(_, Some(start)) => {
-				self.period.start = delay - (random() as i32 % (delay + 60) + 30);
-				self.position = start;
-			},
-			(Active::Flame, _) => (),
-			_ => return,
-		}
-	}
 }
  
 impl Object {
-    fn effect(&self, this: object::Id) -> Option<Obstacle> {
+    fn effect(&self) -> Option<Object> {
         Some(match self.kind {
-            object::Kind::Candle {..} => Obstacle{
-                kind: Active::Flame,
-                period: 0..0,
-                position: self.position.as_signed() - (3, 27),
-                is_on: true,
-                velocity: 0, 
-                control: this.into(),
+            Kind::Candle {..} => Object{
+                kind: Kind::Flame,
+                position: self.position - (3, 27),
             },
-            object::Kind::Outlet { delay, .. } => Obstacle { 
-                kind: Active::Shock, 
-                position: self.position.as_signed(), 
-                period: 0..(delay as i32), 
-                is_on: false,
-                velocity: 0, 
-                control: this.into() 
+            Kind::Outlet { delay, .. } => Object { 
+                kind: Kind::Shock { progress: -30..(delay as i16) }, 
+                position: self.position, 
             },
-            object::Kind::Grease { range, .. } => Obstacle{
-                kind: Active::Spill,
-                position: self.active_area(true).unwrap().as_signed() * (Span::Right, Rise::Bottom) - (0, 1),
-                period: -3..(range as i32 + 1),
-                is_on: false,
-                velocity: 0,
-                control: this.into(),
+            Kind::Grease { range, .. } => Object{
+                kind: Kind::Spill { progress: -3..(range as i16 + 1) },
+                position: self.active_area()? * (Span::Right, Rise::Bottom) - (0, 1),
             },
-            object::Kind::Drip { range } => Obstacle{
-                kind: Active::Drop,
-                position: self.position.as_signed(),
-                period: -8..(range as i32 * 32 + 1),
-                is_on: true,
-                velocity: 0, 
-                control: this.into(),
+            Kind::Drip { range } => Object{
+                kind: Kind::Drop(Motion::new(-8, (range as i16) << 5 + 1, 12)),
+                position: self.position,
             },
             _ => return None
         })
@@ -220,11 +147,6 @@ enum Event {
     Action(Update, Option<object::Id>),
 }
 
-trait Incident {
-    fn resolve(&self, player: Bounds, motion: &mut Displacement) -> Option<Event>;
-    fn bounds(&self) -> Option<Bounds>;
-}
-
 impl From<&State> for u8 {
     fn from(value: &State) -> Self {
         match value {
@@ -254,13 +176,6 @@ impl std::cmp::Ord for State {
     }
 }
 
-fn id() -> u8 {
-    static mut NEXT: NonZero<u8> = unsafe { NonZero::new_unchecked(73) };
-    let id = unsafe { NEXT.get() };
-    unsafe { NEXT = NonZero::new(id.wrapping_add(73)).unwrap_or(const{ NonZero::new(73).unwrap() } ) };
-    id
-}
-
 const PLAYER_SIZE: Size = const{ Size::new(28, 10).unwrap() };
 
 
@@ -269,15 +184,14 @@ pub struct Play<'a> {
     walls: &'a [Object],
     exits: room::Exits,
     score: u32,
-    items: BTreeSet<object::Id>,
+    items: BTreeMap<usize, Object>,
     facing: Side,
     player: Reference,
     motion: Displacement,
     on: On,
     now: Option<State>,
-    links: BTreeMap<object::Id, u8>,
-    hazards: HashMap<u8, Obstacle>,
 }
+
 impl Room {
     pub fn collider_ids(&self) -> impl Iterator<Item = object::Id> + '_ {
         self.objects.iter().enumerate().filter_map(|(id, o)| o.collidable().then_some(id.into()))
@@ -303,34 +217,26 @@ impl Room {
         	eprintln!("{o:?}");
         }
         eprintln!("{:?}", self.environs);
-        let links = Vec::from_iter(
-            self.objects.iter().enumerate()
-                .filter_map(|(index, o)| {
-                    let parent = object::Id::from(index);
-                    Some( (parent, id(), o.effect(parent)?) )
-                }
-            )
+        let mut items = BTreeMap::from_iter(
+            self.objects.iter().enumerate().map(|(index, object)| (index, object.clone()))
         );
+        let mut spawns = BTreeMap::from_iter(items.iter().filter_map(|(_, host)| 
+            host.effect().map(|child| (host as *const _ as usize + 40, child))));
+        items.append(&mut spawns);
+        items.extend(self.animate.as_ref().map(|(count, kind)| 
+            from_fn(move || kind.new(random() % 60 + 30)).take(count.get() as usize)
+        ).into_iter().flatten().collect::<Vec<_>>().iter().map(|anim| (&anim as *const _ as usize, anim.clone())));
         let mut this = Play {
             room: self,
             walls: &BOUNDS[self.walls()],
             exits: self.exits,
             score: 0,
-            items: BTreeSet::from_iter(self.collider_ids()),
+            items,
             facing: Side::Left,
             player: (24, 50).into(),
             motion: Displacement::default(),
             on: self.environs,
             now: from.action(),
-            links: BTreeMap::from_iter(links.iter().map(|&(parent, child, _)| (parent, child))),
-            hazards: HashMap::from_iter(
-                links.into_iter().map(|(_, id, o)| (id, o))
-                .chain(
-                    self.animate.map(|(kind, count, delay)| 
-                        from_fn(move || kind.new(delay)).take(count.get() as usize)
-                    ).into_iter().flatten().map(|h| (id(), h))
-                )
-            ),
         };
         this.reset(from);
         this
@@ -361,7 +267,7 @@ impl super::object::Object {
             Kind::Stair(Vertical::Down, to) => Some(Event::Control(State::Descending(to, state.player.y()))),
             Kind::Wall{..} => {
                 test >>= previous;
-                if let Some(bounds) = self.active_area(true) {
+                if let Some(bounds) = self.active_area() {
                     if test.left() < bounds.right() && test.right() >= bounds.right() {
                         *h += (bounds.right() - test.left()) as i16;
                     }
@@ -373,32 +279,6 @@ impl super::object::Object {
             }
             _ => None
         }
-    }
-}
-
-impl Incident for (object::Id, &object::Object, &Play<'_>) {
-    fn resolve(&self, player: Bounds, motion: &mut Displacement) -> Option<Event> {
-        self.1.action(player, motion, self.0, self.2)
-    }
-    fn bounds(&self) -> Option<Bounds> {
-        self.1.active_area(self.2.is_ready(self.0))
-    }
-}
-
-impl Incident for Obstacle {
-    fn resolve(&self, player: Bounds, motion: &mut Displacement) -> Option<Event> {
-        Some(Event::Control(match self.kind {
-            Active::Spill => {
-                *motion.y_mut() -= motion.y().saturating_add(player.bottom()) - self.position.y();
-                State::Sliding(self.position.y().as_unsigned())
-            }
-            Active::Flame | Active::Shock => IGNITE, 
-            _ => DIE
-        }))
-    }
-    fn bounds(&self) -> Option<Bounds> {
-        if !self.is_on { return None }
-        self.bounds()
     }
 }
 
@@ -445,9 +325,7 @@ const BOUNDS: [Object; 3] = [
             eprintln!("Asc: {motion:?}");
         }
 
-        let (mut motion, collision) = if let Some(o) = control {
-            o
-        } else {
+        let (mut motion, collision) = control.unwrap_or_else(|| {
             let mut motion = Displacement::new(0, 3);
             for action in actions {
                 match action {
@@ -457,28 +335,36 @@ const BOUNDS: [Object; 3] = [
                 };
             }
             (motion, true)
-        };
+        });
         let events = if collision {
             if let Ok(touch) = Bounds::try_from(PLAYER_SIZE / (Span::Center, Rise::Center) << self.player) {
-                let active = BTreeMap::from_iter(self.hazards.iter().map(|(&id, o)| (id, o.control.is_none_or(|parent| self.is_ready(parent)))));
-                for (id, hazard) in self.hazards.iter_mut() { 
-                    hazard.advance(active[id]); 
+                let inactive = self.items.values().filter_map(
+                    |host| if let Kind::Outlet{ready: false, ..} | Kind::Grease{ready: false, ..} = host.kind { 
+                        Some(host as *const _ as usize + 40)
+                    } else { None }
+                ).collect::<BTreeSet<_>>();
+                for (_, animated) in self.items.iter_mut().filter(|(&index, entity)| !inactive.contains(&index) && entity.is_animated()) {
+                    animated.advance();
                 }
                 let objects = 
-                self.active_entries().map(|(id, o)| (Some(id), o)).chain(self.walls.iter().map(|w| (None, w)))
-                    .map(|(i, o)| (i.unwrap_or(u16::MAX.into()), o, &*self)).collect::<Vec<_>>();
-                let actions = objects.iter().map(|o| o as &dyn Incident)
-                    .chain(self.hazards.values().map(|h| h as &dyn Incident))
-                    .filter_map(|i| (i.bounds() & touch).and_then(|_| i.resolve(touch, &mut motion)))
+                    self.items.iter().map(|(&index, o)| (index, o))
+                        .chain(self.walls.iter().map(|wall| (usize::MAX, wall)));
+                let actions = objects
+                    .filter_map(|(i, o)| (o.active_area() & touch).and_then(|_| o.action(touch, &mut motion, i.into(), self)))
                     .collect::<Vec<_>>();
                 
                 let (events, outcomes): (Vec<_>, Vec<_>) = actions.into_iter().map(|e| {
                     match e {
                         Event::Action(a, remove) => {
-                            if let Some(ref used) = remove { self.items.remove(used); }
                             match (a, remove) {
-                                (Update::Start(Environment::Grease, _), Some(bottle)) => { self.hazards.get_mut(&self.links[&bottle]).map(|o| o.is_on = true); }
+                                (Update::Start(Environment::Grease, _), Some(bottle))  => { 
+                                    let index = bottle.into();
+                                    if let Some(Object{kind: Kind::Grease{ready, ..}, ..}) = self.items.get_mut(&index) {
+                                        *ready = false;
+                                    }
+                                }
                                 (Update::Lights, _) => self.on.lights = true,
+                                (_, Some(remove)) => {let index = remove.into(); self.items.remove(&index);}
                                 _ => ()
                             };
                             (Some(a), None)
@@ -508,7 +394,8 @@ const BOUNDS: [Object; 3] = [
     }
 
     pub fn is_ready(&self, o: object::Id) -> bool {
-        o.get() as usize >= self.room.len() || self.items.contains(&o)
+        let index = o.into();
+        index >= self.items.len() || self.items.contains_key(&index)
     }
 /*
     fn award(&mut self, value: u16) {
@@ -527,39 +414,24 @@ const BOUNDS: [Object; 3] = [
                 Kind::Paper(_) |
                 Kind::Battery(_) |
                 Kind::RubberBands(_) 
-                    => self.items.contains(&id),
+                    => self.items.contains_key(&id),
                 Kind::Grease{..} |
                 Kind::Drip{..} |
                 Kind::Ball{..} |
                 Kind::Fishbowl{..} => true,
                 _ => false
-            }.then_some((id, o))
+            }.then_some((id.into(), o))
         })
     }
 
      pub fn active_items(&self) -> impl Iterator<Item = &Object> {
-        self.items.iter()
-            .map(|&index| &self.room[index] )
+        self.items.values()
     }
 
     pub fn active_entries(&self) -> impl Iterator<Item = (object::Id, &Object)> {
         self.room.objects.iter().enumerate()
-            .filter_map(|(id, o)| {let id = id.into(); self.items.contains(&id).then_some((id, o))})
+            .filter_map(|(index, o)| {let id = index.into(); self.items.get_key_value(&index).map(|(_, o)| (id, o))})
     } 
-
-    pub fn active_hazards(&self) -> impl Iterator<Item = (u16, Active, (i16, i16), bool)> + '_ {
-        self.hazards.iter().map(|(&id, Obstacle{kind, mut position, is_on, period, ..})| {
-        if let Active::Drop = kind { 
-            *position.y_mut() += period.start as i16 / 32;
-            eprintln!("{position:?}");
-        } 
-        (
-            if let Active::Spill = kind {0u16.saturating_add_signed(period.start as i16)} else {id as u16}, 
-            *kind, 
-            <(i16, i16)>::from(position), 
-            *is_on
-        )})
-    }
 
     pub fn player(&self) -> ((i16, i16), Option<Side>, bool) {
         (self.player.into(), match self.now{Some(State::Turning(..)) => None, _ => Some(self.facing)}, self.facing * self.motion.x() < 0)
@@ -591,6 +463,6 @@ const BOUNDS: [Object; 3] = [
     }
 
     pub fn debug_zones<'this>(&'this self) -> impl Iterator<Item=Bounds> + 'this {
-        self.room.objects.iter().filter_map(|o| o.active_area(true))
+        self.room.objects.iter().filter_map(|o| o.active_area())
     }
 }
