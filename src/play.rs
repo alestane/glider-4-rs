@@ -83,13 +83,13 @@ impl Obstacle {
 			Active::Balloon => const{ Size::new(32, 32).unwrap() },
 			Active::Flame => const{ Size::new(11, 12).unwrap() },
             Active::Shock => const{ Size::new(32, 25).unwrap() },
-            Active::Drop => return Some(const{ Size::new(16, 14).unwrap() } / (Span::Center, Rise::Top) << (self.position + (0, self.period.start as i16 / 32)).as_unsigned()),
+            Active::Drop => return Some(const{ Size::new(16, 14).unwrap() } / (Span::Center, Rise::Top) << (self.position + (0, self.period.start as i16 / 32))),
             Active::Spill 
                 => return Size::new(self.period.start.max(0) as u16, 2)
-                .map(|size| (size / (Span::Left, Rise::Bottom) << self.position.as_unsigned())),
+                .map(|size| (size / (Span::Left, Rise::Bottom) << self.position)),
 			_ => return None
 		};
-        Some((size / (Span::Center, Rise::Center) << self.position).as_unsigned())
+        Some(size / (Span::Center, Rise::Center) << self.position)
 	} 
 	fn advance(&mut self, parent_ready: bool) {
         match self.kind {
@@ -389,7 +389,7 @@ impl Incident for Obstacle {
     fn resolve(&self, player: Bounds, motion: &mut Displacement) -> Option<Event> {
         Some(Event::Control(match self.kind {
             Active::Spill => {
-                *motion.y_mut() -= motion.y().saturating_add_unsigned(player.bottom()) - self.position.y();
+                *motion.y_mut() -= motion.y().saturating_add(player.bottom()) - self.position.y();
                 State::Sliding(self.position.y().as_unsigned())
             }
             Active::Flame | Active::Shock => IGNITE, 

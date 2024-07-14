@@ -25,7 +25,7 @@ impl TryFrom<[u16; 4]> for Bounds {
     fn try_from(data: [u16; 4]) -> Result<Self, Self::Error> {
         let (true, true) = (data[3] > data[1], data[2] > data[0]) else { return Err(BadRectError::Inverted)};
         match (NonZero::new(data[3] - data[1]), NonZero::new(data[2] - data[0])) {
-            (Some(..), Some(..)) => Ok(unsafe{ Bounds::new_unchecked(data[1], data[0], data[3], data[2])}),
+            (Some(..), Some(..)) => Ok(unsafe{ Bounds::new_unchecked(data[1] as i16, data[0] as i16, data[3] as i16, data[2] as i16)}),
             (width, height) => Err(BadRectError::Empty{width, height}),
         }
     }
@@ -341,16 +341,16 @@ impl TryFrom<binary::Object> for Object {
              5 => Kind::Exit{to: Some(amount.into())},
              6 => Kind::Obstacle(bounds.size()),
 
-             8 => Kind::FloorVent{height:bounds.top() - amount},
-             9 => Kind::CeilingVent{height: amount - bounds.bottom()},
-            10 => Kind::CeilingDuct{height: amount - bounds.bottom(), destination: Some(extra.into()), ready},
-            11 => Kind::Candle{height: bounds.top() - amount},
-            12 => Kind::Fan{faces: Side::Left, range: bounds.left() - amount, ready},
-            13 => Kind::Fan{faces: Side::Right, range: amount - bounds.right(), ready},
+             8 => Kind::FloorVent{height:bounds.top() as u16 - amount},
+             9 => Kind::CeilingVent{height: amount - bounds.bottom() as u16},
+            10 => Kind::CeilingDuct{height: amount - bounds.bottom() as u16, destination: Some(extra.into()), ready},
+            11 => Kind::Candle{height: bounds.top() as u16 - amount},
+            12 => Kind::Fan{faces: Side::Left, range: bounds.left() as u16 - amount, ready},
+            13 => Kind::Fan{faces: Side::Right, range: amount - bounds.right() as u16, ready},
 
             16 => Kind::Clock(amount),
             17 => Kind::Paper(amount),
-            18 => Kind::Grease{range: amount - bounds.right(), ready},
+            18 => Kind::Grease{range: amount - bounds.right() as u16, ready},
             19 => Kind::Bonus(amount, bounds.size()),
             20 => Kind::Battery(amount),
             21 => Kind::RubberBands(amount as u8),
@@ -362,10 +362,10 @@ impl TryFrom<binary::Object> for Object {
             28 => Kind::Switch(Some(amount.into())),
             29 => Kind::Guitar,
 
-            32 => Kind::Drip{range: amount - bounds.top()},
-            33 => Kind::Toaster{range: bounds.top() - amount, delay: extra},
-            34 => Kind::Bounce{range: bounds.bottom() - amount},
-            35 => Kind::Fishbowl{range: bounds.y() - amount, delay: extra},
+            32 => Kind::Drip{range: amount - bounds.top() as u16},
+            33 => Kind::Toaster{range: bounds.top() as u16 - amount, delay: extra},
+            34 => Kind::Bounce{range: bounds.bottom() as u16 - amount},
+            35 => Kind::Fishbowl{range: bounds.y() as u16 - amount, delay: extra},
             36 => Kind::Teakettle{delay: amount},
             37 => Kind::Window(bounds.size(), ready),
 

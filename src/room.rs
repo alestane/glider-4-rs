@@ -2,12 +2,12 @@ use std::{num::NonZero, slice::SliceIndex, ops::Index};
 
 use super::{*, object::Object};
 
-pub const SCREEN_HEIGHT:	u16 = 342;
-pub const SCREEN_WIDTH:		u16 = 512;
-pub const VERT_CEILING:		u16 = 24;
-pub const VERT_FLOOR:		u16 = 325;
+pub const SCREEN_HEIGHT:	i16 = 342;
+pub const SCREEN_WIDTH:		i16 = 512;
+pub const VERT_CEILING:		i16 = 24;
+pub const VERT_FLOOR:		i16 = 325;
 
-pub const BOUNDS:	Bounds = unsafe { Bounds::new_unchecked(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT) };
+pub const BOUNDS:	Bounds = const{ Bounds::new(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT).unwrap() };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]

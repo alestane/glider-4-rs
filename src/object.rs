@@ -188,7 +188,7 @@ impl Object {
             Kind::Drip {..} => const{ Size::new(16, 13) },
             _ => None
         } }?;
-        Some((size / anchor << position).as_unsigned())
+        Some(size / anchor << position)
     }
 
     pub fn dynamic(&self) -> bool {
