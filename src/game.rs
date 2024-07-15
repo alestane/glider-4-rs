@@ -20,9 +20,7 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room
         |display| {
             let mut display = (display, &context.sprites);
             display.show(&(theme, room.1.tile_order));
-            for object in room.1.objects.iter().filter(|&object| !object.dynamic()) {
-                display.show(object);
-            }
+            display.show(&room.1.objects);
         }
     );
     let mut display = (display, &context.sprites);

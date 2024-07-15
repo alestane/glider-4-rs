@@ -387,6 +387,14 @@ mod room {
         }
     }
 
+    impl Visible for Vec<Object> {
+        fn show<Display: Scribe>(&self, display: &mut Display) {
+            for object in self.iter().filter(|&o| !o.is_dynamic()) {
+                object.show(display);
+            }
+        }
+    }
+
     impl Visible for sdl2::pixels::Color {
         fn show<Display: Scribe>(&self, display: &mut Display) {
             display.clear(*self)
@@ -416,7 +424,7 @@ mod room {
                         display.sprite((player_position.0 - 16, player_position.1 - 32), CENTER, facing, frame)
                     );
                 }
-                for (id, item) in play.visible_entries().filter(|&(_, o)| o.dynamic()) {
+                for (id, item) in play.visible_entries().filter(|&(_, o)| o.is_dynamic()) {
                     let frame = match item.kind {
                         object::Kind::Grease{..} if play.is_ready(id) => Some(atlas::UPRIGHT),
                         object::Kind::Grease{..} => animations.check(id.get() as u8).or(Some(atlas::TIPPED)),
