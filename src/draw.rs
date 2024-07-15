@@ -78,7 +78,7 @@ mod object {
                         draw_table(display, Frame::from(bounds).into())
                     }
                     Is::Shelf{width} => {
-                        draw_shelf(display, space::Rect::from((self.position - (width.get() / 2, 0), Size::from((width, const{ NonZero::new(5).unwrap() })))))
+                        draw_shelf(display, space::Rect::from((self.position - (width.get() as i16 / 2, 0), Size::from((width, const{ NonZero::new(5).unwrap() })))))
                     }
                     Is::Cabinet(size) => {
                         let (width, height) = (size.width() as u32, size.height() as u32);
@@ -371,45 +371,6 @@ mod object {
     }    
 }    
 
-mod hazard {
-    type Frame = space::Rect;
-    use super::*;
-
-    impl Visible for (usize, Active, (i16, i16)) {
-        fn show<Display: Scribe>(&self, display: &mut Display) {
-            let name = match self.1 {
-                Active::Dart => "dart",
-            	Active::Balloon => "balloon",
-                Active::Copter => "copter",
-                Active::Flame => "fire",
-                Active::Shock => "power", 
-                Active::Drop => "water",
-                Active::Spill => return { display.fill(BLACK, Rect::new(self.2.0 as i32, self.2.1 as i32, self.0 as u32, 3)).ok();},
-                _ => return
-            };
-            display.sprite(self.2, CENTER, name, self.0)
-        }
-    }
-
-    impl Cycle for Active {
-        fn start(&self, seed: u8) -> Option<super::Frame> {
-            let range = match self {
-                Active::Dart => atlas::FLYING,
-                Active::Balloon => atlas::RISING,
-                Active::Copter => atlas::FALLING,
-                Active::Flame => atlas::FLAME,
-                Active::Shock => atlas::SPARK,
-                Active::Drop => atlas::DRIP,
-                _ => return None
-            };
-            let skip = seed as usize % NonZero::new(range.end - range.start)?.get();
-            let mut c = range.cycle().map(|i| repeat(i).take(2)).flatten();
-            c.advance_by(skip).ok();
-            Some(Box::new(c))
-        }
-    }
-}
-
 mod room {
     use super::*; 
 
@@ -449,13 +410,13 @@ mod room {
                     (None, item).show(display);
                 }
             } else {
-                for (position, size) in play.active_items().filter_map(|&o| match o.kind{object::Kind::Mirror(size) => Some((o.position, size - (8, 8))), _ => None}) {
+                for (position, size) in play.active_items().filter_map(|o| match o.kind{object::Kind::Mirror(size) => Some((o.position, size - (8, 8))), _ => None}) {
                     let bounds = space::Rect::from(size / CENTER << position);
                     display.clipping(bounds, |display|
                         display.sprite((player_position.0 - 16, player_position.1 - 32), CENTER, facing, frame)
                     );
                 }
-                for (id, item) in play.visible_entries().filter(|(_, &o)| o.dynamic()) {
+                for (id, item) in play.visible_entries().filter(|&(_, o)| o.dynamic()) {
                     let frame = match item.kind {
                         object::Kind::Grease{..} if play.is_ready(id) => Some(atlas::UPRIGHT),
                         object::Kind::Grease{..} => animations.check(id.get() as u8).or(Some(atlas::TIPPED)),
@@ -464,17 +425,8 @@ mod room {
                     (frame, item).show(display);
                 }
             }
-            for frame in play.debug_zones() {
+            for _frame in play.debug_zones() {
                 // display.fill((0, 255, 0, 100), space::Rect::from(frame).into()).ok();
-            }
-            for (id, hazard, position, is_on) in play.active_hazards() {
-                if !is_on { continue; }
-                let position: space::Point = position.into();
-                let frame = match hazard {
-                    Active::Spill => id as usize, 
-                    _ => animations.check_or_else(id as u8, |id| hazard.start(id))
-                };
-                (frame, hazard, position.into()).show(display);
             }
             display.sprite((player_position.0, player_position.1 + 10), BOTTOM, facing, frame);
             display.sprite((player_position.0, VERT_FLOOR as i16), TOP, facing, atlas::SHADOW);
