@@ -29,7 +29,7 @@ impl From<Point> for sdl2::rect::Point {
 }
 
 impl From<Point> for glider::Position {
-	fn from(Point{x_, y_}: Point) -> Self { Self::new(x_ as u16, y_ as u16) }
+	fn from(Point{x_, y_}: Point) -> Self { Self::new(x_ as i16, y_ as i16) }
 }
 
 impl From<Point> for (i32, i32) {
@@ -71,20 +71,14 @@ impl Default for Rect {
 
 impl From<(glider::Position, glider::Size)> for Rect {
     fn from((corner, size): (glider::Position, glider::Size)) -> Self {
-        Self::new_unsigned(corner.x() as u32, corner.y() as u32, (corner.x() + size.width()) as u32, (corner.y() + size.height()) as u32)
+        Self::new_unsigned(corner.x() as u32, corner.y() as u32, corner.x().saturating_add_unsigned(size.width()) as u32, corner.y().saturating_add_unsigned(size.height()) as u32)
     }
 }
 
 impl From<glider::Bounds> for Rect {
     fn from(value: glider::Bounds) -> Self {
         let (left, top, right, bottom) = value.into();
-        Self::Unsigned(left as u32, top as u32, right as u32, bottom as u32)
-    }
-}
-
-impl From<glider::prelude::Rect<i16>> for Rect {
-    fn from(value: glider::prelude::Rect<i16>) -> Self {
-        Self::new_signed(value.left() as i32, value.top() as i32, value.right() as i32, value.bottom() as i32)
+        Self::Signed(left as i32, top as i32, right as i32, bottom as i32)
     }
 }
 
@@ -100,19 +94,19 @@ impl From<Rect> for glider::Bounds {
         match value {
             Rect::Unsigned(l, t, r, b) => {
                 let (left, top, right, bottom) = (
-                    l.try_into().unwrap_or(u16::MAX - 1),
-                    t.try_into().unwrap_or(u16::MAX - 1),
-                    r.try_into().unwrap_or(u16::MAX),
-                    b.try_into().unwrap_or(u16::MAX)
+                    l.try_into().unwrap_or(i16::MAX - 1),
+                    t.try_into().unwrap_or(i16::MAX - 1),
+                    r.try_into().unwrap_or(i16::MAX),
+                    b.try_into().unwrap_or(i16::MAX)
                 );
                 Self::new(left, top, right.max(left + 1), bottom.max(top + 1)).unwrap()
             }
             Rect::Signed(l, t, r, b) => {
                 Self::new(
-                    if l < 0 { 0u16 } else { l.try_into().unwrap_or(u16::MAX) },
-                    if t < 0 { 0u16 } else { t.try_into().unwrap_or(u16::MAX) },
-                    if r < 0 { 1u16 } else { r.try_into().unwrap_or(u16::MAX) },
-                    if b < 0 { 1u16 } else { b.try_into().unwrap_or(u16::MAX) },
+                    if l < 0 { 0 } else { l.try_into().unwrap_or(i16::MAX) },
+                    if t < 0 { 0 } else { t.try_into().unwrap_or(i16::MAX) },
+                    if r < 0 { 1 } else { r.try_into().unwrap_or(i16::MAX) },
+                    if b < 0 { 1 } else { b.try_into().unwrap_or(i16::MAX) },
                 ).unwrap()
             }
         }
