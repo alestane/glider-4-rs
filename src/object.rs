@@ -199,16 +199,26 @@ impl Object {
         Some(size / anchor << position)
     }
 
-    pub fn dynamic(&self) -> bool {
+    pub fn is_dynamic(&self) -> bool {
         match self.kind {
             Kind::Clock(_) |
             Kind::Paper(_) |
             Kind::Grease{..} |
             Kind::Battery(_) |
             Kind::RubberBands(_) |
-            Kind::Drip{..} |
             Kind::Ball{..} |
-            Kind::Fishbowl{..} => true,
+            Kind::Fish(..) |
+            Kind::Fishbowl{..} |
+            Kind::Balloon(..) |
+            Kind::Copter(..) |
+            Kind::Dart(..) |
+            Kind::Flame |
+            Kind::Drop(..) |
+            Kind::Shock{..} |
+            Kind::Spill{..} |
+            Kind::Toast(..) |
+            Kind::Toaster{..} 
+                => true,
             _ => false
         }
     }
