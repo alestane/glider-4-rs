@@ -72,14 +72,15 @@ pub enum Environment {
     Guitar,
     Toast,
     Grease,
+    Switch,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum Update {
     Score(u16, object::Id),
-    Life,
-    Bands(u8),
-    Energy(u8),
+    Life(u16, object::Id),
+    Bands(u8, object::Id),
+    Energy(u8, object::Id),
     Shoot,
     Zoom,
     Start(Environment, Option<object::Id>),
