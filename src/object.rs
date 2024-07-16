@@ -59,7 +59,7 @@ pub enum Kind {
     Grease{range: u16, ready: bool},
     Spill{progress: Interval},
     Bonus(u16, Size),
-    Battery(u16),
+    Battery(u8),
     RubberBands(u8),
     
     Switch(Option<Id>),
