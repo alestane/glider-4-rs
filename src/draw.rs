@@ -59,10 +59,6 @@ impl Animator for Animations {
     }
 }
 
-trait Cycle {
-    fn start(&self, seed: u8) -> Option<Frame>;
-}
-
 mod object {
     type Frame = space::Rect;
     pub type Kind = glider::prelude::object::Kind;
@@ -392,6 +388,13 @@ mod room {
             for object in self.iter().filter(|&o| !o.is_dynamic()) {
                 object.show(display);
             }
+        }
+    }
+
+    impl Visible for (&Texture<'_>, &Room) {
+        fn show<Display: Scribe>(&self, display: &mut Display) {
+            (self.0, self.1.tile_order).show(display);
+            self.1.objects.show(display);
         }
     }
 

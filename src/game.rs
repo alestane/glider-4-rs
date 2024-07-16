@@ -19,8 +19,7 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room
     let _ = display.with_texture_canvas(&mut backdrop,
         |display| {
             let mut display = (display, &context.sprites);
-            display.show(&(theme, room.1.tile_order));
-            display.show(&room.1.objects);
+            display.show(&(theme, room.1));
         }
     );
     let mut display = (display, &context.sprites);
