@@ -74,6 +74,6 @@ impl Iterator for object::Kind {
 
 impl Object {
     pub fn advance(&mut self) {
-
+        if let Some(offset) = self.kind.next() {self.position += <(_,_)>::from(offset)}
     }
 }
