@@ -1,7 +1,7 @@
 use crate::{Environment, Position, Reference, Displacement, Size, Bounds, Update, Vertical, cart::{Rise, Span}};
 
 use super::{Input, Outcome, object::{self, Object, Kind, Motion}, room::{self, On, Room}, Side};
-use std::{collections::{BTreeMap, BTreeSet}, iter::from_fn, ops::Range};
+use std::{collections::{BTreeMap, BTreeSet}, iter::from_fn, ops::{Index, IndexMut, Range}};
 
 fn random() -> i16 {
 	use std::sync::LazyLock;
@@ -144,7 +144,8 @@ impl std::iter::Iterator for State {
 #[derive(Debug, Clone)]
 enum Event {
     Control(State),
-    Action(Update, Option<object::Id>),
+    Display(Update), 
+    Action(Change),
 }
 
 impl From<&State> for u8 {
@@ -252,17 +253,17 @@ impl super::object::Object {
             Kind::CeilingDuct { destination, .. } if !state.is_ready(id) => Some(Event::Control(State::Escaping(destination))),
             Kind::CeilingDuct {..} | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
             Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(faces, 0..11))) }
-            Kind::Grease {..} => Some(Event::Action(Update::Start(Environment::Grease, Some(id)), Some(id))),
+            Kind::Grease {..} => Some(Event::Action(Change::Spill)),
             Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
             Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} 
                 => {eprintln!("{:?}", self.kind); Some(Event::Control(DIE))},
-            Kind::Clock(value) | Kind::Bonus(value, ..) => Some(Event::Action(Update::Score(value, id), Some(id))),
-            Kind::Battery(value) => Some(Event::Action(Update::Energy(value as u8), Some(id))),
-            Kind::Paper(_lives) => Some(Event::Action(Update::Life, Some(id))),
-            Kind::RubberBands(_bands) => Some(Event::Action(Update::Bands(_bands), Some(id))),
+            Kind::Clock(..) | Kind::Bonus(..) => Some(Event::Action(Change::Collect)),
+            Kind::Battery(..) => Some(Event::Action(Change::Collect)),
+            Kind::Paper(_lives) => Some(Event::Action(Change::Collect)),
+            Kind::RubberBands(_bands) => Some(Event::Action(Change::Collect)),
             Kind::FloorVent { .. } | Kind::Candle { .. } => {if state.on.air {*v = -6}; None},
-            Kind::Guitar => Some(Event::Action(Update::Start(Environment::Guitar, Some(id)), None)),
-            Kind::Switch(None) => Some(Event::Action(Update::Lights, None)),
+            Kind::Guitar => Some(Event::Display(Update::Start(Environment::Guitar, Some(id)))),
+            Kind::Switch(None) => Some(Event::Action(Change::Light)),
             Kind::Stair(Vertical::Up, to) => Some(Event::Control(State::Ascending(to, state.player.y()))),
             Kind::Stair(Vertical::Down, to) => Some(Event::Control(State::Descending(to, state.player.y()))),
             Kind::Wall{..} => {
@@ -275,7 +276,7 @@ impl super::object::Object {
                         *h -= (test.right() - bounds.left()) as i16;
                     }
                 }
-                Some(Event::Action(Update::Bump, None))
+                Some(Event::Display(Update::Bump))
             }
             _ => None
         }
@@ -296,6 +297,15 @@ const BOUNDS: [Object; 3] = [
         position: Position::new(498, 342),
     },
 ];
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Change {
+    Collect,
+    Toggle(object::Id),
+    Spill,
+    Light,
+    Heat,
+}
 
  impl<'a> Play<'a> {
     pub fn frame(&mut self, actions: &[Input]) -> Outcome {
@@ -349,35 +359,53 @@ const BOUNDS: [Object; 3] = [
                 let objects = 
                     self.items.iter().map(|(&index, o)| (index, o))
                         .chain(self.walls.iter().map(|wall| (usize::MAX, wall)));
-                let actions = objects
-                    .filter_map(|(i, o)| (o.active_area() & touch).and_then(|_| o.action(touch, &mut motion, i.into(), self)))
+                let incidents = objects
+                    .filter_map(|(i, o)| (o.active_area() & touch).and_then(|_| Some((i, o.action(touch, &mut motion, i.into(), self)?))))
                     .collect::<Vec<_>>();
-                
-                let (events, outcomes): (Vec<_>, Vec<_>) = actions.into_iter().map(|e| {
-                    match e {
-                        Event::Action(a, remove) => {
-                            match (a, remove) {
-                                (Update::Start(Environment::Grease, _), Some(bottle))  => { 
-                                    let index = bottle.into();
-                                    if let Some(Object{kind: Kind::Grease{ready, ..}, ..}) = self.items.get_mut(&index) {
-                                        *ready = false;
+
+                    let (events, outcomes) = incidents.into_iter().map(|(id, event)| 
+                        match event {
+                            Event::Display(update) => (Some(update), None),
+                            Event::Control(state) => (None, Some(state)),
+                            Event::Action(action) => (Some(match action {
+                                Change::Heat => {
+                                    self.on.air = true;
+                                    Update::Air
+                                }
+                                Change::Light => {
+                                    self.on.lights = true;
+                                    Update::Lights
+                                }
+                                Change::Spill => {
+                                    match self.get_mut(id) {
+                                        Some(Object{kind: Kind::Grease{ready, ..}, ..}) if *ready == true => {*ready = false;}
+                                        _ => return (None, None)
+                                    }
+                                    Update::Start(Environment::Grease, Some(object::Id::from(id as u16)))
+                                }
+                                Change::Toggle(id) => {
+                                    match self.get_child_mut(id) {
+                                        Some(Object{kind: Kind::Outlet { ready, .. }, ..}) |
+                                        Some(Object{kind: Kind::Shredder { ready }, ..}) |
+                                        Some(Object{kind: Kind::CeilingDuct { ready, .. }, ..}) |
+                                        Some(Object{kind: Kind::Fan { ready, .. }, ..}) 
+                                            => *ready = !*ready,
+                                        _ => ()
+                                    };
+                                    Update::Start(Environment::Switch, None)
+                                }
+                                Change::Collect => {
+                                    if let Some(event) = self.award(id) {
+                                        event
+                                    } else {
+                                        return (None, None)
                                     }
                                 }
-                                (Update::Lights, _) => self.on.lights = true,
-                                (_, Some(remove)) => {let index = remove.into(); self.items.remove(&index);}
-                                _ => ()
-                            };
-                            (Some(a), None)
-                        },
-                        Event::Control(c) => {
-                            match c {
-                                State::Turning(face, ..) => self.facing = face,
-                                _ => ()
-                            }
-                            (None, Some(c))
-                        },
-                    }
-                }).unzip();
+                            }), None)
+                        }
+                    )
+                    .unzip::<_, _, Vec<_>, Vec<_>>();
+                
                 let events: Vec<_> = signal.into_iter().flatten().chain(events.into_iter().filter_map(|e| e)).collect();
                 self.now = self.now.iter().chain(outcomes.iter().filter_map(|e| e.as_ref())).max().cloned();
                 Some(events)
@@ -397,11 +425,29 @@ const BOUNDS: [Object; 3] = [
         let index = o.into();
         index >= self.items.len() || self.items.contains_key(&index)
     }
-/*
-    fn award(&mut self, value: u16) {
-        self.score += value as u32;
+
+    fn award(&mut self, index: usize) -> Option<Update> {
+        let id = object::Id::from(index);
+        let ping = match self.get(index)?.kind {
+            Kind::Battery(value) => {
+                Update::Energy(value, id)
+            }
+            Kind::Bonus(value, _) |
+            Kind::Clock(value) 
+                => {
+                    Update::Score(value, id)
+                }
+            Kind::Paper(value) => {
+                Update::Life(value, id)
+            }
+            Kind::RubberBands(count) => {
+                Update::Bands(count, id)
+            }
+            _ => return None
+        };
+        self.items.remove(&index);
+        Some(ping)
     }
-    */ 
 
     pub fn dark(&self) -> bool { !self.on.lights }
     pub fn cold(&self) -> bool { !self.on.air }
@@ -464,5 +510,21 @@ const BOUNDS: [Object; 3] = [
 
     pub fn debug_zones<'this>(&'this self) -> impl Iterator<Item=Bounds> + 'this {
         self.room.objects.iter().filter_map(|o| o.active_area())
+    }
+
+    fn get(&self, index: usize) -> Option<&Object> {
+        self.items.get(&index)
+    }
+
+    fn get_mut(&mut self, index: usize) -> Option<&mut Object> {
+        self.items.get_mut(&index)
+    }
+
+    fn get_child(&self, object::Id(index): object::Id) -> Option<&Object> {
+        self.get(self.get(index.get() as usize)? as *const _ as usize + 40)
+    }
+
+    fn get_child_mut(&mut self, object::Id(index): object::Id) -> Option<&mut Object> {
+        self.get_mut(self.get(index.get() as usize)? as *const _ as usize + 40)
     }
 }
