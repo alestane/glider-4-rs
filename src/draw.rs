@@ -17,7 +17,7 @@ fn random() -> u16 {
 }
 
 pub type Frame = Box<dyn Iterator<Item = usize>>;
-pub type Animations = RefCell<HashMap<u8, Frame>>;
+pub type Animations = RefCell<HashMap<usize, Frame>>;
 
 const BLACK     : Color = Color::RGB(0x00, 0x00, 0x00);
 const WHITE     : Color = Color::RGB(0xFF, 0xFF, 0xFF);
@@ -36,18 +36,18 @@ pub trait Visible {
 }
 
 trait Animator {
-    fn check(&self, id: u8) -> Option<usize>;
-    fn check_or_else(&self, id: u8, f: impl FnOnce(u8) -> Option<Frame>) -> usize;
+    fn check(&self, id: usize) -> Option<usize>;
+    fn check_or_else(&self, id: usize, f: impl FnOnce(usize) -> Option<Frame>) -> usize;
 }
 
 impl Animator for Animations {
-    fn check(&self, id: u8) -> Option<usize> { 
+    fn check(&self, id: usize) -> Option<usize> { 
         let mut list = self.borrow_mut();
         let index = list.get_mut(&id).and_then(|id| id.next());
         if index.is_none() { list.remove(&id); }
         index
      }
-     fn check_or_else(&self, id: u8, f: impl FnOnce(u8) -> Option<Frame>) -> usize {
+     fn check_or_else(&self, id: usize, f: impl FnOnce(usize) -> Option<Frame>) -> usize {
         let mut list = self.borrow_mut();
         if let Some(seq) = list.get_mut(&id) {
             Some(seq)
@@ -126,6 +126,7 @@ mod object {
                 Is::Books => ("visual", atlas::BOOKS, BOTTOM),
                 Is::Painting => ("visual", atlas::PAINTING, CENTER),
                 Is::Guitar => ("visual", atlas::GUITAR, BOTTOM),
+                Is::Balloon(..) => ("balloon", atlas::POPPED, CENTER),
                 Is::Stair(direction, ..) => ("stairs", match direction {Vertical::Up => atlas::STAIRS_UP, Vertical::Down => atlas::STAIRS_DOWN}, BOTTOM),
                 #[cfg(debug_assertions)]
                 _ => return eprintln!("Object {:?} NOT IMPLEMENTED yet.", self.1)
@@ -432,8 +433,8 @@ mod room {
             for (id, item) in items.into_iter().filter(|&(_, o)| o.is_dynamic()) {
                 let frame = match item.kind {
                     object::Kind::Grease{ready: true, ..} => Some(atlas::UPRIGHT),
-                    object::Kind::Grease{..} => animations.check(id.get() as u8).or(Some(atlas::TIPPED)),
-                    _ => None
+                    object::Kind::Grease{..} => animations.check(id.get()).or(Some(atlas::TIPPED)),
+                    _ => animations.check(id.get())
                 };
                 (frame, item).show(display);
             }
