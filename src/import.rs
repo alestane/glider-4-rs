@@ -338,7 +338,7 @@ impl TryFrom<binary::Object> for Object {
              2 => Kind::Shelf{width: bounds.width()},
              3 => Kind::Books, 
              4 => Kind::Cabinet(bounds.size()),
-             5 => Kind::Exit{to: Some(amount.into())},
+             5 => Kind::Exit{size: bounds.size(), to: Some(amount.into())},
              6 => Kind::Obstacle(bounds.size()),
 
              8 => Kind::FloorVent{height:bounds.top() as u16 - amount},
@@ -356,7 +356,7 @@ impl TryFrom<binary::Object> for Object {
             21 => Kind::RubberBands(amount as u8),
 
             24 => Kind::Switch(None),
-            25 => Kind::Outlet{delay: amount, ready},
+            25 => Kind::Outlet{progress: -30..(amount as i16)},
             26 => Kind::Thermostat,
             27 => Kind::Shredder{ready},
             28 => Kind::Switch(Some(amount.into())),

@@ -64,7 +64,7 @@ impl Iterator for object::Kind {
             Is::Copter(delay) =>  { delay.next()?; (-8, 1) },
             Is::Dart(delay) =>    { delay.next()?; (-4, 2) },
             Is::Spill { progress } => {progress.next(); return None},
-            Is::Shock { progress } => {if let None = progress.next() {progress.start = -30;} return None},
+            Is::Outlet { progress } => {if let None = progress.next() {progress.start = -30;} return None},
             Is::Steam { progress } => {if let None = progress.next() {progress.start = -10;} return None},
             _ => return None,
             

@@ -50,23 +50,6 @@ impl object::Kind {
         Some(Object{kind, position: position.into()})
     }
 }
-impl Object {
-	fn bounds(&self) -> Option<Bounds> {
-		let size = match self.kind {
-            Kind::Dart(..) => const{ Size::new(64, 22).unwrap() },
-            Kind::Copter(..) => const{ Size::new(32, 32).unwrap() },
-			Kind::Balloon(..) => const{ Size::new(32, 32).unwrap() },
-			Kind::Flame => const{ Size::new(11, 12).unwrap() },
-            Kind::Shock{..} => const{ Size::new(32, 25).unwrap() },
-            Kind::Drop(ref progress) => return Some(const{ Size::new(16, 14).unwrap() } / (Span::Center, Rise::Top) << (self.position + (0, progress.value() / 32))),
-            Kind::Spill{ref progress} 
-                => return Size::new(progress.start.max(0) as u16, 2)
-                .map(|size| (size / (Span::Left, Rise::Bottom) << self.position)),
-			_ => return None
-		};
-        Some(size / (Span::Center, Rise::Center) << self.position)
-	} 
-}
  
 impl Object {
     fn effect(&self) -> Option<Object> {
@@ -74,10 +57,6 @@ impl Object {
             Kind::Candle {..} => Object{
                 kind: Kind::Flame,
                 position: self.position - (3, 27),
-            },
-            Kind::Outlet { delay, .. } => Object { 
-                kind: Kind::Shock { progress: -30..(delay as i16) }, 
-                position: self.position, 
             },
             Kind::Grease { range, .. } => Object{
                 kind: Kind::Spill { progress: -3..(range as i16 + 1) },
@@ -219,7 +198,7 @@ impl Room {
         }
         eprintln!("{:?}", self.environs);
         let mut items = BTreeMap::from_iter(
-            self.objects.iter().enumerate().map(|(index, object)| (unsafe{ NonZero::new_unchecked(index + 1) }, object.clone()))
+            self.objects.iter().enumerate().filter_map(|(index, object)| (!object.is_cosmetic()).then(|| (unsafe{ NonZero::new_unchecked(index + 1) }, object.clone()) ))
         );
         let mut spawns = BTreeMap::from_iter(items.iter().filter_map(|(_, host)| 
             host.effect().map(|child| (Play::child_id(host), child))));
@@ -351,7 +330,7 @@ enum Change {
         let events = if collision {
             if let Ok(touch) = Bounds::try_from(PLAYER_SIZE / (Span::Center, Rise::Center) << self.player) {
                 let inactive = self.items.values().filter_map(
-                    |host| if let Kind::Outlet{ready: false, ..} | Kind::Grease{ready: false, ..} = host.kind { 
+                    |host| if let Kind::Grease{ready: false, ..} = host.kind { 
                         Some(Play::child_id(host))
                     } else { None }
                 ).collect::<BTreeSet<_>>();
@@ -387,7 +366,6 @@ enum Change {
                             }
                             Change::Toggle(id) => {
                                 match self.get_child_mut(id) {
-                                    Some(Object{kind: Kind::Outlet { ready, .. }, ..}) |
                                     Some(Object{kind: Kind::Shredder { ready }, ..}) |
                                     Some(Object{kind: Kind::CeilingDuct { ready, .. }, ..}) |
                                     Some(Object{kind: Kind::Fan { ready, .. }, ..}) 
