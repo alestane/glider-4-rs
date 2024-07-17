@@ -50,7 +50,7 @@ impl Object {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum State {
 	Escaping(Option<room::Id>),
-    Sliding(u16),
+    Sliding(i16),
     FadingIn(Range<u8>),
     FadingOut(Range<u8>),
     Turning(Side, Range<u8>),
@@ -189,6 +189,7 @@ impl super::object::Object {
             Kind::CeilingDuct {..} | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
             Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(faces, 0..11))) }
             Kind::Grease {..} => Some(Event::Action(Change::Spill)),
+            Kind::Spill{..} => Some(Event::Control(State::Sliding(test.x()))),
             Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
             Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} |
             Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..)
