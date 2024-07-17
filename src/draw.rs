@@ -126,7 +126,9 @@ mod object {
                 Is::Books => ("visual", atlas::BOOKS, BOTTOM),
                 Is::Painting => ("visual", atlas::PAINTING, CENTER),
                 Is::Guitar => ("visual", atlas::GUITAR, BOTTOM),
+                Is::Flame => ("fire", 0, CENTER),
                 Is::Balloon(..) => ("balloon", atlas::POPPED, CENTER),
+                Is::Copter(..) => ("copter", atlas::CRUMPLED, CENTER),
                 Is::Stair(direction, ..) => ("stairs", match direction {Vertical::Up => atlas::STAIRS_UP, Vertical::Down => atlas::STAIRS_DOWN}, BOTTOM),
                 #[cfg(debug_assertions)]
                 _ => return eprintln!("Object {:?} NOT IMPLEMENTED yet.", self.1)
