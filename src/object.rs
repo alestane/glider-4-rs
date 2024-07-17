@@ -183,7 +183,6 @@ impl Object {
             Kind::RubberBands(..) => const{ Size::new(32, 23) },
             Kind::Switch(..) | Kind::Thermostat => const{ Size::new(18, 27) },
             Kind::Grease {ready: true, ..} => const{ Size::new(32, 29) },
-            Kind::Drip {..} => const{ Size::new(16, 13) },
             Kind::Dart(..) => const{ Size::new(64, 22) },
             Kind::Ball(..) | Kind::Copter(..) | Kind::Balloon(..) => const{ Size::new(32, 32) },
             Kind::Drop(..) => const{ Size::new(16, 14) },
