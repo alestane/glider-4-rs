@@ -209,6 +209,7 @@ impl super::object::Object {
             Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} |
             Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..)
                 => {eprintln!("{:?}", self.kind); Some(Event::Control(DIE))},
+            Kind::Flame => Some(Event::Control(IGNITE)),
             Kind::Clock(..) | Kind::Bonus(..) |
             Kind::Battery(..) |
             Kind::Paper(..) |
