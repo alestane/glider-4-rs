@@ -422,9 +422,14 @@ enum Change {
     pub fn dark(&self) -> bool { !self.on.lights }
     pub fn cold(&self) -> bool { !self.on.air }
 
-    pub fn active_entries(&self) -> impl Iterator<Item = (object::Id, &Object)> {
+    pub fn visible_items(&self) -> impl Iterator<Item = (crate::prelude::object::Id, &Object)> {
         self.items.iter()
-            .filter_map(|(index, o)| {let id = (*index).into(); o.active_area().map(|_| (id, o))})
+            .filter_map(|(&id, o)| { 
+                if self.dark() {
+                    let Kind::Switch(None) = o.kind else {return None}; 
+                };
+                Some((id, o))
+            })
     } 
 
     pub fn player(&self) -> ((i16, i16), Option<Side>, bool) {
