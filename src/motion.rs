@@ -1,4 +1,6 @@
-use crate::{object, Displacement, Interval, Object};
+use std::ops::Range;
+
+use crate::{object, room, Displacement, Interval, Object, Position};
 
 #[disclose]
 #[derive(Debug, Clone)]
@@ -60,9 +62,9 @@ impl Iterator for object::Kind {
             Is::Ball(motion) | Is::Toast(motion) | Is::Fish(motion) => {
                 (0, motion.next()?)
             }
-            Is::Balloon(delay) => { delay.next()?; (0, -3) }, 
-            Is::Copter(delay) =>  { delay.next()?; (-8, 1) },
-            Is::Dart(delay) =>    { delay.next()?; (-4, 2) },
+            Is::Balloon(delay) => delay.next().is_none().then_some( (0, -3) )?, 
+            Is::Copter(delay) =>  delay.next().is_none().then_some( (-8, 1) )?,
+            Is::Dart(delay) =>    delay.next().is_none().then_some( (-4, 2) )?,
             Is::Spill { progress } => {progress.next(); return None},
             Is::Outlet { progress } => {if let None = progress.next() {progress.start = -30;} return None},
             Is::Steam { progress } => {if let None = progress.next() {progress.start = -10;} return None},
@@ -74,6 +76,52 @@ impl Iterator for object::Kind {
 
 impl Object {
     pub fn advance(&mut self) {
-        if let Some(offset) = self.kind.next() {self.position += <(_,_)>::from(offset)}
+        if let Some(offset) = self.kind.next() {
+            type Is = object::Kind;
+            self.position += <(_,_)>::from(offset);
+            match self.kind {
+                Is::Balloon(..) | Is::Copter(..) | Is::Dart(..) if (self.active_area() & room::BOUNDS).is_none() 
+                    => self.reset(),
+                _ => ()
+            };
+        }
     }
+
+    fn reset(&mut self) {
+        if let Some(position) = self.kind.reset(0) {
+            self.position = position;
+        }
+    }
+}
+
+impl object::Kind {
+    fn reset(&mut self, delay: i16) -> Option<Position> {
+        type Is = object::Kind;
+        let (start, position) = match self {
+            Is::Balloon(Range{start, ..}) => (start, (random() % 400 + 50, 358)),
+            Is::Copter(Range{start, ..}) => (start, (random() % 256 + 272, -16)),
+            Is::Dart(Range{start, ..}) => (start, (544, random() % 150 + 11)),
+            _ => return None,
+        };
+        *start = -delay;
+        Some(position.into())
+    }
+
+    pub fn new(&self) -> Option<Object> {
+        let mut kind = self.clone();
+        let position = kind.reset(random() % 60 + 30)?;
+        Some(Object{kind, position})
+    }
+}
+
+fn random() -> i16 {
+	use std::sync::LazyLock;
+	use random::Source;
+	static mut RAND: LazyLock<std::cell::RefCell<random::Default>> = LazyLock::new(|| std::cell::RefCell::new(random::default(
+		match std::time::SystemTime::UNIX_EPOCH.elapsed() {
+			Ok(length) => length,
+			Err(wrong) => wrong.duration(),
+		}.as_secs()
+	)));
+    unsafe { RAND.borrow_mut().read::<i16>() } 
 }

@@ -3,18 +3,6 @@ use crate::{Environment, Position, Reference, Displacement, Size, Bounds, Update
 use super::{Input, Outcome, object::{self, Object, Kind, Motion}, room::{self, On, Room}, Side};
 use std::{collections::{BTreeMap, BTreeSet}, iter::from_fn, num::NonZero, ops::Range};
 
-fn random() -> i16 {
-	use std::sync::LazyLock;
-	use random::Source;
-	static mut RAND: LazyLock<std::cell::RefCell<random::Default>> = LazyLock::new(|| std::cell::RefCell::new(random::default(
-		match std::time::SystemTime::UNIX_EPOCH.elapsed() {
-			Ok(length) => length,
-			Err(wrong) => wrong.duration(),
-		}.as_secs()
-	)));
-    unsafe { RAND.borrow_mut().read::<i16>() } 
-}
-
 const MAX_THRUST: i16 = 5;
 
 #[derive(Debug, Clone, Copy)]
@@ -39,18 +27,6 @@ impl Entrance {
     }
 }
 
-impl object::Kind {
-    fn new(&self, delay: i16) -> Option<Object> {
-        let (kind, position) = match self {
-            Self::Dart(Range{end, ..}) => (Self::Dart(-delay..*end), (544, random() % 150 + 11)),
-            Self::Copter(Range{end, ..}) => (Self::Copter(-delay..*end), (random() % 256 + 272, -16)),
-            Self::Balloon(Range{end, ..}) => (Self::Balloon(-delay..*end), (random() % 400 + 50, 358)),
-            _ => return None,
-        };
-        Some(Object{kind, position: position.into()})
-    }
-}
- 
 impl Object {
     fn effect(&self) -> Option<Object> {
         Some(match self.kind {
@@ -200,7 +176,7 @@ impl Room {
             host.effect().map(|child| (Play::child_id(host), child))));
         items.append(&mut spawns);
         items.extend(self.animate.as_ref().map(|(count, kind)| 
-            from_fn(move || kind.new(random() % 60 + 30)).take(count.get() as usize)
+            from_fn(move || kind.new()).take(count.get() as usize)
         ).into_iter().flatten().collect::<Vec<_>>().iter().map(|anim| (Play::child_id(anim), anim.clone())));
         let mut this = Play {
             room: self,
@@ -426,7 +402,11 @@ enum Change {
         self.items.iter()
             .filter_map(|(&id, o)| { 
                 if self.dark() {
-                    let Kind::Switch(None) = o.kind else {return None}; 
+                    match o.kind {
+                        Kind::Switch(None) | Kind::Balloon(..) | Kind::Dart(..) | Kind::Copter(..)
+                            => (),
+                        _ => return None,
+                    }
                 };
                 Some((id, o))
             })
