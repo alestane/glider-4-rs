@@ -1,7 +1,7 @@
 use crate::{Environment, Position, Reference, Displacement, Size, Bounds, Update, Vertical, cart::{Rise, Span}};
 
 use super::{Input, Outcome, object::{self, Object, Kind, Motion}, room::{self, On, Room}, Side};
-use std::{collections::{BTreeMap, BTreeSet}, iter::from_fn, ops::{Index, IndexMut, Range}};
+use std::{collections::{BTreeMap, BTreeSet}, iter::from_fn, num::NonZero, ops::Range};
 
 fn random() -> i16 {
 	use std::sync::LazyLock;
@@ -185,7 +185,7 @@ pub struct Play<'a> {
     walls: &'a [Object],
     exits: room::Exits,
     score: u32,
-    items: BTreeMap<usize, Object>,
+    items: BTreeMap<NonZero<usize>, Object>,
     facing: Side,
     player: Reference,
     motion: Displacement,
@@ -195,7 +195,7 @@ pub struct Play<'a> {
 
 impl Room {
     pub fn collider_ids(&self) -> impl Iterator<Item = object::Id> + '_ {
-        self.objects.iter().enumerate().filter_map(|(id, o)| o.collidable().then_some(id.into()))
+        self.objects.iter().enumerate().filter_map(|(id, o)| o.collidable().then_some(object::Id::try_from(id + 1).unwrap()))
     }
     
     fn entrance(&self, from: Entrance) -> i16 {
@@ -219,14 +219,14 @@ impl Room {
         }
         eprintln!("{:?}", self.environs);
         let mut items = BTreeMap::from_iter(
-            self.objects.iter().enumerate().map(|(index, object)| (index, object.clone()))
+            self.objects.iter().enumerate().map(|(index, object)| (unsafe{ NonZero::new_unchecked(index + 1) }, object.clone()))
         );
         let mut spawns = BTreeMap::from_iter(items.iter().filter_map(|(_, host)| 
-            host.effect().map(|child| (host as *const _ as usize + 40, child))));
+            host.effect().map(|child| (Play::child_id(host), child))));
         items.append(&mut spawns);
         items.extend(self.animate.as_ref().map(|(count, kind)| 
             from_fn(move || kind.new(random() % 60 + 30)).take(count.get() as usize)
-        ).into_iter().flatten().collect::<Vec<_>>().iter().map(|anim| (&anim as *const _ as usize, anim.clone())));
+        ).into_iter().flatten().collect::<Vec<_>>().iter().map(|anim| (Play::child_id(anim), anim.clone())));
         let mut this = Play {
             room: self,
             walls: &BOUNDS[self.walls()],
@@ -257,10 +257,10 @@ impl super::object::Object {
             Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
             Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} 
                 => {eprintln!("{:?}", self.kind); Some(Event::Control(DIE))},
-            Kind::Clock(..) | Kind::Bonus(..) => Some(Event::Action(Change::Collect)),
-            Kind::Battery(..) => Some(Event::Action(Change::Collect)),
-            Kind::Paper(_lives) => Some(Event::Action(Change::Collect)),
-            Kind::RubberBands(_bands) => Some(Event::Action(Change::Collect)),
+            Kind::Clock(..) | Kind::Bonus(..) |
+            Kind::Battery(..) |
+            Kind::Paper(..) |
+            Kind::RubberBands(..) => Some(Event::Action(Change::Collect)),
             Kind::FloorVent { .. } | Kind::Candle { .. } => {if state.on.air {*v = -6}; None},
             Kind::Guitar => Some(Event::Display(Update::Start(Environment::Guitar, Some(id)))),
             Kind::Switch(None) => Some(Event::Action(Change::Light)),
@@ -308,6 +308,8 @@ enum Change {
 }
 
  impl<'a> Play<'a> {
+    #[inline]
+    pub fn child_id(parent: &Object) -> NonZero<usize> { unsafe{ NonZero::new_unchecked(parent as *const _ as usize + 40) } }
     pub fn frame(&mut self, actions: &[Input]) -> Outcome {
         let mut signal = self.now.as_ref().map(|s| match s {
             State::FadingIn(..) => vec![Update::Fade(true)],
@@ -350,7 +352,7 @@ enum Change {
             if let Ok(touch) = Bounds::try_from(PLAYER_SIZE / (Span::Center, Rise::Center) << self.player) {
                 let inactive = self.items.values().filter_map(
                     |host| if let Kind::Outlet{ready: false, ..} | Kind::Grease{ready: false, ..} = host.kind { 
-                        Some(host as *const _ as usize + 40)
+                        Some(Play::child_id(host))
                     } else { None }
                 ).collect::<BTreeSet<_>>();
                 for (_, animated) in self.items.iter_mut().filter(|(&index, entity)| !inactive.contains(&index) && entity.is_animated()) {
@@ -358,53 +360,53 @@ enum Change {
                 }
                 let objects = 
                     self.items.iter().map(|(&index, o)| (index, o))
-                        .chain(self.walls.iter().map(|wall| (usize::MAX, wall)));
+                        .chain(self.walls.iter().map(|wall| (NonZero::<usize>::MAX, wall)));
                 let incidents = objects
                     .filter_map(|(i, o)| (o.active_area() & touch).and_then(|_| Some((i, o.action(touch, &mut motion, i.into(), self)?))))
                     .collect::<Vec<_>>();
 
-                    let (events, outcomes) = incidents.into_iter().map(|(id, event)| 
-                        match event {
-                            Event::Display(update) => (Some(update), None),
-                            Event::Control(state) => (None, Some(state)),
-                            Event::Action(action) => (Some(match action {
-                                Change::Heat => {
-                                    self.on.air = true;
-                                    Update::Air
+                let (events, outcomes) = incidents.into_iter().map(|(id, event)| 
+                    match event {
+                        Event::Display(update) => (Some(update), None),
+                        Event::Control(state) => (None, Some(state)),
+                        Event::Action(action) => (Some(match action {
+                            Change::Heat => {
+                                self.on.air = true;
+                                Update::Air
+                            }
+                            Change::Light => {
+                                self.on.lights = true;
+                                Update::Lights
+                            }
+                            Change::Spill => {
+                                match self.get_mut(id) {
+                                    Some(Object{kind: Kind::Grease{ready, ..}, ..}) if *ready == true => {*ready = false;}
+                                    _ => return (None, None)
                                 }
-                                Change::Light => {
-                                    self.on.lights = true;
-                                    Update::Lights
+                                Update::Start(Environment::Grease, Some(object::Id::from(id)))
+                            }
+                            Change::Toggle(id) => {
+                                match self.get_child_mut(id) {
+                                    Some(Object{kind: Kind::Outlet { ready, .. }, ..}) |
+                                    Some(Object{kind: Kind::Shredder { ready }, ..}) |
+                                    Some(Object{kind: Kind::CeilingDuct { ready, .. }, ..}) |
+                                    Some(Object{kind: Kind::Fan { ready, .. }, ..}) 
+                                        => *ready = !*ready,
+                                    _ => ()
+                                };
+                                Update::Start(Environment::Switch, None)
+                            }
+                            Change::Collect => {
+                                if let Some(event) = self.award(id.into()) {
+                                    event
+                                } else {
+                                    return (None, None)
                                 }
-                                Change::Spill => {
-                                    match self.get_mut(id) {
-                                        Some(Object{kind: Kind::Grease{ready, ..}, ..}) if *ready == true => {*ready = false;}
-                                        _ => return (None, None)
-                                    }
-                                    Update::Start(Environment::Grease, Some(object::Id::from(id as u16)))
-                                }
-                                Change::Toggle(id) => {
-                                    match self.get_child_mut(id) {
-                                        Some(Object{kind: Kind::Outlet { ready, .. }, ..}) |
-                                        Some(Object{kind: Kind::Shredder { ready }, ..}) |
-                                        Some(Object{kind: Kind::CeilingDuct { ready, .. }, ..}) |
-                                        Some(Object{kind: Kind::Fan { ready, .. }, ..}) 
-                                            => *ready = !*ready,
-                                        _ => ()
-                                    };
-                                    Update::Start(Environment::Switch, None)
-                                }
-                                Change::Collect => {
-                                    if let Some(event) = self.award(id) {
-                                        event
-                                    } else {
-                                        return (None, None)
-                                    }
-                                }
-                            }), None)
-                        }
-                    )
-                    .unzip::<_, _, Vec<_>, Vec<_>>();
+                            }
+                        }), None)
+                    }
+                )
+                .unzip::<_, _, Vec<_>, Vec<_>>();
                 
                 let events: Vec<_> = signal.into_iter().flatten().chain(events.into_iter().filter_map(|e| e)).collect();
                 self.now = self.now.iter().chain(outcomes.iter().filter_map(|e| e.as_ref())).max().cloned();
@@ -422,13 +424,12 @@ enum Change {
     }
 
     pub fn is_ready(&self, o: object::Id) -> bool {
-        let index = o.into();
-        index >= self.items.len() || self.items.contains_key(&index)
+        let index = *o;
+        index.get() >= self.items.len() || self.items.contains_key(&index)
     }
 
-    fn award(&mut self, index: usize) -> Option<Update> {
-        let id = object::Id::from(index);
-        let ping = match self.get(index)?.kind {
+    fn award(&mut self, id: object::Id) -> Option<Update> {
+        let ping = match self.get(*id)?.kind {
             Kind::Battery(value) => {
                 Update::Energy(value, id)
             }
@@ -445,38 +446,21 @@ enum Change {
             }
             _ => return None
         };
-        self.items.remove(&index);
+        self.items.remove(&id);
         Some(ping)
     }
 
     pub fn dark(&self) -> bool { !self.on.lights }
     pub fn cold(&self) -> bool { !self.on.air }
 
-    pub fn visible_entries(&self) -> impl Iterator<Item = (object::Id, &Object)> {
-        self.room.objects.iter().enumerate().filter_map(|(id, o)|{
-            let id = id.into();
-            match o.kind {
-                Kind::Clock(_) |
-                Kind::Paper(_) |
-                Kind::Battery(_) |
-                Kind::RubberBands(_) 
-                    => self.items.contains_key(&id),
-                Kind::Grease{..} |
-                Kind::Drip{..} |
-                Kind::Ball{..} |
-                Kind::Fishbowl{..} => true,
-                _ => false
-            }.then_some((id.into(), o))
-        })
-    }
 
      pub fn active_items(&self) -> impl Iterator<Item = &Object> {
         self.items.values()
     }
 
     pub fn active_entries(&self) -> impl Iterator<Item = (object::Id, &Object)> {
-        self.room.objects.iter().enumerate()
-            .filter_map(|(index, o)| {let id = index.into(); self.items.get_key_value(&index).map(|(_, o)| (id, o))})
+        self.items.iter()
+            .filter_map(|(index, o)| {let id = (*index).into(); o.active_area().map(|_| (id, o))})
     } 
 
     pub fn player(&self) -> ((i16, i16), Option<Side>, bool) {
@@ -512,19 +496,19 @@ enum Change {
         self.room.objects.iter().filter_map(|o| o.active_area())
     }
 
-    fn get(&self, index: usize) -> Option<&Object> {
+    fn get(&self, index: NonZero<usize>) -> Option<&Object> {
         self.items.get(&index)
     }
 
-    fn get_mut(&mut self, index: usize) -> Option<&mut Object> {
+    fn get_mut(&mut self, index: NonZero<usize>) -> Option<&mut Object> {
         self.items.get_mut(&index)
     }
 
     fn get_child(&self, object::Id(index): object::Id) -> Option<&Object> {
-        self.get(self.get(index.get() as usize)? as *const _ as usize + 40)
+        self.get(Self::child_id(self.get(index)?))
     }
 
     fn get_child_mut(&mut self, object::Id(index): object::Id) -> Option<&mut Object> {
-        self.get_mut(self.get(index.get() as usize)? as *const _ as usize + 40)
+        self.get_mut(Self::child_id(self.get(index)?))
     }
 }

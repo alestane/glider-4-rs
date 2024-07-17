@@ -30,7 +30,7 @@ mod prelude {
     }
     pub mod object {
         pub use crate::object::Kind;
-        pub type Id = super::NonZero<u16>;
+        pub type Id = super::NonZero<usize>;
     }
 
     pub type Anchor = (Span, Rise);

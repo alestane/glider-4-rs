@@ -8,10 +8,10 @@ mod motion;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Id(pub NonZero<u16>);
+pub struct Id(pub NonZero<usize>);
 
 impl std::ops::Deref for Id {
-    type Target = NonZero<u16>;
+    type Target = NonZero<usize>;
     fn deref(&self) -> &Self::Target {
         let Id(ref value) = self;
         value
@@ -19,20 +19,27 @@ impl std::ops::Deref for Id {
 }
 
 impl From<u16> for self::Id {
-	fn from(value: u16) -> Self { unsafe { Self( NonZero::new_unchecked( value.saturating_sub(1) + 1 ) ) } }
+	fn from(value: u16) -> Self { unsafe { Self( NonZero::new_unchecked( value.saturating_sub(1) as usize + 1 ) ) } }
 }
 
-impl From<usize> for self::Id {
-	fn from(value: usize) -> Self { unsafe { Self( NonZero::new_unchecked((value + 1) as u16) ) } }
+impl From<NonZero<usize>> for self::Id {
+    fn from(value: NonZero<usize>) -> Self { Self(value) }
+}
+
+impl TryFrom<usize> for self::Id {
+    type Error = usize;
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Ok(Self(NonZero::new(value).ok_or(value)?))
+    }
 }
 
 impl From<self::Id> for usize {
 	fn from(value: self::Id) -> Self { value.0.get() as usize - 1 }
 }
 
-impl From<self::Id> for Option<u16> {
-    fn from(value: self::Id) -> Self { Some(value.0.get()) }
-}
+/* impl From<self::Id> for Option<u16> {
+    fn from(value: self::Id) -> Self { Some(value.0.get() as u16) }
+} */
 
 #[derive(Debug, Clone)]
 pub enum Kind {
