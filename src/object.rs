@@ -160,10 +160,6 @@ impl Object {
             _ => false,
         }
     }
-
-    pub fn collidable(&self) -> bool {
-        match self.kind { Kind::Painting | Kind::Outlet { .. } | Kind::Window( .. ) | Kind::Ball{..} => false, _ => self.is_ready() }
-    }
  
     pub fn active_area(&self) -> Option<Bounds> {
         let mut position = self.position;
