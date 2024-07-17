@@ -135,9 +135,8 @@ impl std::cmp::Ord for State {
 const PLAYER_SIZE: Size = const{ Size::new(28, 10).unwrap() };
 
 
-pub struct Play<'a> {
-    room: &'a Room,
-    walls: &'a [Object],
+pub struct Play {
+    walls: &'static [Object],
     exits: room::Exits,
     score: u32,
     items: BTreeMap<NonZero<usize>, Object>,
@@ -149,20 +148,6 @@ pub struct Play<'a> {
 }
 
 impl Room {
-    fn entrance(&self, from: Entrance) -> i16 {
-        fn is_active_duct(o: &&Object) -> bool { matches!(o.kind, object::Kind::CeilingDuct { .. }) }
-        fn is_down_stair(o: &&Object) -> bool { matches!(o.kind, object::Kind::Stair(Vertical::Down, _)) }
-        self.objects.iter()
-        .filter(
-            match from {
-                Entrance::Air => is_active_duct,
-                Entrance::Down => is_down_stair,
-                _ => return 232
-            }
-        )
-        .map(|o| o.position.x() as i16).last().unwrap_or(232)
-    }
-
     pub fn start(&self, from: Entrance) -> Play {
         eprintln!("{}", self.name);
         for o in &self.objects {
@@ -179,7 +164,6 @@ impl Room {
             from_fn(move || kind.new()).take(count.get() as usize)
         ).into_iter().flatten().collect::<Vec<_>>().iter().map(|anim| (Play::child_id(anim), anim.clone())));
         let mut this = Play {
-            room: self,
             walls: &BOUNDS[self.walls()],
             exits: self.exits,
             score: 0,
@@ -260,7 +244,7 @@ enum Change {
     Heat,
 }
 
- impl<'a> Play<'a> {
+ impl Play {
     #[inline]
     pub fn child_id(parent: &Object) -> NonZero<usize> { unsafe{ NonZero::new_unchecked(parent as *const _ as usize + 40) } }
     pub fn frame(&mut self, actions: &[Input]) -> Outcome {
@@ -419,7 +403,17 @@ enum Change {
     }
 
     fn entrance(&self, from: Entrance) -> i16 {
-        self.room.entrance(from) 
+        fn is_active_duct(o: &&Object) -> bool { matches!(o.kind, object::Kind::CeilingDuct { .. }) }
+        fn is_down_stair(o: &&Object) -> bool { matches!(o.kind, object::Kind::Stair(Vertical::Down, _)) }
+        self.items.values()
+        .filter(
+            match from {
+                Entrance::Air => is_active_duct,
+                Entrance::Down => is_down_stair,
+                _ => return 232
+            }
+        )
+        .map(|o| o.position.x() as i16).last().unwrap_or(232)
     }
 
     fn enter_at(&self, from: Entrance) -> ((i16, i16), Side) {
@@ -444,7 +438,7 @@ enum Change {
     }
 
     pub fn debug_zones<'this>(&'this self) -> impl Iterator<Item=Bounds> + 'this {
-        self.room.objects.iter().filter_map(|o| o.active_area())
+        self.items.values().filter_map(|o| o.active_area())
     }
 
     fn get(&self, index: NonZero<usize>) -> Option<&Object> {

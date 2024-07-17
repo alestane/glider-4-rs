@@ -414,7 +414,7 @@ mod room {
         }
     }
 
-    impl Visible for (&glider::Play<'_>, &Animations) {
+    impl Visible for (&glider::Play, &Animations) {
         fn show<Display: Scribe>(&self, display: &mut Display) {
             let &(play, animations) = self;
             let (player_position, facing, backward) = play.player();
