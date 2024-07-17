@@ -173,10 +173,6 @@ pub struct Play<'a> {
 }
 
 impl Room {
-    pub fn collider_ids(&self) -> impl Iterator<Item = object::Id> + '_ {
-        self.objects.iter().enumerate().filter_map(|(id, o)| o.collidable().then_some(object::Id::try_from(id + 1).unwrap()))
-    }
-    
     fn entrance(&self, from: Entrance) -> i16 {
         fn is_active_duct(o: &&Object) -> bool { matches!(o.kind, object::Kind::CeilingDuct { .. }) }
         fn is_down_stair(o: &&Object) -> bool { matches!(o.kind, object::Kind::Stair(Vertical::Down, _)) }
@@ -229,7 +225,7 @@ impl super::object::Object {
         let previous = *motion;
         let (h, v) = motion.as_mut();
         match self.kind {
-            Kind::CeilingDuct { destination, .. } if !state.is_ready(id) => Some(Event::Control(State::Escaping(destination))),
+            Kind::CeilingDuct { destination, ready: false, ..} => Some(Event::Control(State::Escaping(destination))),
             Kind::CeilingDuct {..} | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
             Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(faces, 0..11))) }
             Kind::Grease {..} => Some(Event::Action(Change::Spill)),
@@ -401,11 +397,6 @@ enum Change {
         Outcome::Continue(events)
     }
 
-    pub fn is_ready(&self, o: object::Id) -> bool {
-        let index = *o;
-        index.get() >= self.items.len() || self.items.contains_key(&index)
-    }
-
     fn award(&mut self, id: object::Id) -> Option<Update> {
         let ping = match self.get(*id)?.kind {
             Kind::Battery(value) => {
@@ -430,11 +421,6 @@ enum Change {
 
     pub fn dark(&self) -> bool { !self.on.lights }
     pub fn cold(&self) -> bool { !self.on.air }
-
-
-     pub fn active_items(&self) -> impl Iterator<Item = &Object> {
-        self.items.values()
-    }
 
     pub fn active_entries(&self) -> impl Iterator<Item = (object::Id, &Object)> {
         self.items.iter()
