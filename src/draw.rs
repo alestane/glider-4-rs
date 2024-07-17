@@ -416,25 +416,26 @@ mod room {
             let (player_position, facing, backward) = play.player();
             let facing = match facing {Some(Side::Left) => "glider.left", Some(Side::Right) => "glider.right", _ => "glider.turn"};
             let frame = animations.check(0).unwrap_or(if backward {atlas::TIPPED} else {atlas::LEVEL});
-            if play.dark() {
-                for item in play.active_items().filter(|&o| matches!(o.kind, object::Kind::Switch(None))) {
-                    (None, item).show(display);
-                }
-            } else {
-                for (position, size) in play.active_items().filter_map(|o| match o.kind{object::Kind::Mirror(size) => Some((o.position, size - (8, 8))), _ => None}) {
-                    let bounds = space::Rect::from(size / CENTER << position);
-                    display.clipping(bounds, |display|
-                        display.sprite((player_position.0 - 16, player_position.1 - 32), CENTER, facing, frame)
-                    );
-                }
-                for (id, item) in play.visible_entries().filter(|&(_, o)| o.is_dynamic()) {
-                    let frame = match item.kind {
-                        object::Kind::Grease{..} if play.is_ready(id) => Some(atlas::UPRIGHT),
-                        object::Kind::Grease{..} => animations.check(id.get() as u8).or(Some(atlas::TIPPED)),
-                        _ => None
+            let items = play.visible_items().filter(
+                |(_, o)| {
+                    if let object::Kind::Mirror(size) = o.kind {
+                        let bounds = space::Rect::from(size / CENTER << o.position);
+                        display.clipping(bounds, |display|
+                            display.sprite((player_position.0 - 16, player_position.1 - 32), CENTER, facing, frame)
+                        );
+                        return false;
                     };
-                    (frame, item).show(display);
+                    true
                 }
+            ).collect::<Vec<_>>();
+
+            for (id, item) in items.into_iter().filter(|&(_, o)| o.is_dynamic()) {
+                let frame = match item.kind {
+                    object::Kind::Grease{ready: true, ..} => Some(atlas::UPRIGHT),
+                    object::Kind::Grease{..} => animations.check(id.get() as u8).or(Some(atlas::TIPPED)),
+                    _ => None
+                };
+                (frame, item).show(display);
             }
             for _frame in play.debug_zones() {
                 // display.fill((0, 255, 0, 100), space::Rect::from(frame).into()).ok();
