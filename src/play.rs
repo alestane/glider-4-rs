@@ -206,7 +206,8 @@ impl super::object::Object {
             Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(faces, 0..11))) }
             Kind::Grease {..} => Some(Event::Action(Change::Spill)),
             Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
-            Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} 
+            Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} |
+            Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..)
                 => {eprintln!("{:?}", self.kind); Some(Event::Control(DIE))},
             Kind::Clock(..) | Kind::Bonus(..) |
             Kind::Battery(..) |
