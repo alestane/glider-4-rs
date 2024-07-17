@@ -422,13 +422,14 @@ mod room {
             let items = play.visible_items().filter(
                 |(_, o)| {
                     if let object::Kind::Mirror(size) = o.kind {
+                        let size = size - (8, 8);
                         let bounds = space::Rect::from(size / CENTER << o.position);
                         display.clipping(bounds, |display|
                             display.sprite((player_position.0 - 16, player_position.1 - 32), CENTER, facing, frame)
                         );
                         return false;
                     };
-                    true
+                    o.is_dynamic()
                 }
             ).collect::<Vec<_>>();
 
