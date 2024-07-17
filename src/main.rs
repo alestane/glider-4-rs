@@ -14,6 +14,8 @@ mod room {
 	pub const VERT_FLOOR:		u32 = room::VERT_FLOOR as u32;
 }
 
+use glider::prelude::object;
+
 mod space;
 mod resources;
 mod game;
