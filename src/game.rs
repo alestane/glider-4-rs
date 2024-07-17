@@ -11,6 +11,10 @@ fn animate_with<F: FnOnce() -> Frame>(list: &Animations, id: usize, loader: F) {
     if !list.contains_key(&id) {list.insert(id, loader());}
 }
 
+fn recycle<I: Iterator<Item: Clone>>(iter: I, count: usize) -> impl Iterator<Item = I::Item> {
+    iter.map(move |i| repeat(i).take(count)).flatten()
+}
+
 pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room), target: Entrance) -> Result<(u32, Option<(NonZero<u16>, Entrance)>), ()> {
     let display = &mut context.display;
     let loader = display.texture_creator();
@@ -30,10 +34,12 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room
         let mut animation = animation.borrow_mut();
         for (id, object) in play.visible_items() {
             let range = match object.kind {
-                object::Kind::Balloon(Range{end, ..}) => (end as usize % atlas::RISING.count())..atlas::RISING.count(),
+                object::Kind::Balloon(Range{end, ..}) => (end as usize, atlas::RISING.count()),
+                object::Kind::Copter(Range{end, ..}) => (end as usize, atlas::FALLING.count()),
+                object::Kind::Flame => (atlas::FLAME.start, atlas::FLAME.end),
                 _ => continue,
             };
-            animation.insert(id.get(), Box::new(range.cycle().map(|i| repeat(i).take(2)).flatten()));
+            animation.insert(id.get(), Box::new(recycle((range.0..range.1).cycle(), 2)));
         }
     }
 
