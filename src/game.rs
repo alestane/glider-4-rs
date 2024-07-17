@@ -51,6 +51,7 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room
             match event {
                 Event::Quit{..} => break 'game,
                 Event::KeyDown { scancode: Some(Scancode::Up), repeat: false, .. } => inputs.push(Input::Flip),
+                Event::KeyDown { scancode: Some(Scancode::Escape), repeat: false, .. } => break 'game,
                 _ => ()
             }
         }
