@@ -36,6 +36,10 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room
             let range = match object.kind {
                 object::Kind::Balloon(Range{end, ..}) => (end as usize, atlas::RISING.count()),
                 object::Kind::Copter(Range{end, ..}) => (end as usize, atlas::FALLING.count()),
+                object::Kind::Dart(..) => {
+                    animation.insert(id.get(), Box::new(repeat(1)));
+                    continue
+                }
                 object::Kind::Flame => (atlas::FLAME.start, atlas::FLAME.end),
                 _ => continue,
             };
