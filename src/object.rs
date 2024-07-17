@@ -141,17 +141,6 @@ pub struct Object {
 }
 
 impl Object {
-    fn is_ready(&self) -> bool {
-        match self.kind {
-            Kind::CeilingDuct { ready, .. } |
-            Kind::Fan { ready, .. } |
-            Kind::Grease { ready, .. } |
-            Kind::Shredder { ready } 
-                => ready,
-            _ => true,
-        }
-    }
-
     pub fn is_animated(&self) -> bool {
         match self.kind {
             Kind::Ball(..) | Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..) | Kind::Drop(..) |
