@@ -240,7 +240,8 @@ impl Object {
             Kind::Outlet{..} |
             Kind::Spill{..} |
             Kind::Toast(..) |
-            Kind::Toaster{..} 
+            Kind::Toaster{..} |
+            Kind::Switch(None)
                 => true,
             _ => false
         }
