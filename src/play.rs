@@ -185,7 +185,11 @@ impl super::object::Object {
             Kind::CeilingDuct {..} | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
             Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(faces, 0..11))) }
             Kind::Grease {ready: true, ..} => Some(Event::Action(Change::Spill)),
-            Kind::Grease {ready: false, ..} => Some(Event::Control(State::Sliding(test.y()))),
+            Kind::Grease {ready: false, ..} => {
+                eprintln!("Spill: {test:?}"); 
+                *motion.y_mut() -= motion.y().saturating_add(test.bottom()) - self.position.y();
+                Some(Event::Control(State::Sliding(self.position.y())))
+            }
             Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
             Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} |
             Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..)
