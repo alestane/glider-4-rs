@@ -1,6 +1,6 @@
 #![feature(
     iter_next_chunk, slice_as_chunks, iterator_try_collect, is_none_or,
-    iter_advance_by,
+    iter_advance_by, iter_collect_into,
     const_trait_impl, effects, const_option,
     generic_arg_infer, generic_const_exprs, const_refs_to_cell,
     nonzero_internals
