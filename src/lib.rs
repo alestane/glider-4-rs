@@ -29,7 +29,7 @@ mod prelude {
         pub type Id = super::NonZero<u16>;
     }
     pub mod object {
-        pub use crate::object::Kind;
+        pub use crate::object::{Kind, Motion};
         pub type Id = super::NonZero<usize>;
     }
 
