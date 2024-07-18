@@ -62,6 +62,9 @@ impl Animator for Animations {
 mod object {
     type Frame = space::Rect;
     pub type Kind = glider::prelude::object::Kind;
+    pub type Motion = glider::prelude::object::Motion;
+    use std::ops::Range;
+
     use super::*;
 
     impl Visible for Object {
@@ -122,6 +125,7 @@ mod object {
                 Is::Switch(None) => ("power", atlas::SWITCH, CENTER),
                 Is::Outlet{..} => ("power", atlas::OUTLET, CENTER),
                 Is::Drip {..} => ("water", atlas::STILL_DRIP, TOP),
+                Is::Drop(Motion{limit: Range{start, ..}, ..}) => ("water", 5usize.saturating_add_signed(start as isize / 2).min(4), TOP),
                 Is::Macintosh => ("visual", atlas::COMPUTER, BOTTOM),
                 Is::Books => ("visual", atlas::BOOKS, BOTTOM),
                 Is::Painting => ("visual", atlas::PAINTING, CENTER),
@@ -130,6 +134,10 @@ mod object {
                 Is::Balloon(..) => ("balloon", atlas::POPPED, CENTER),
                 Is::Copter(..) => ("copter", atlas::CRUMPLED, CENTER),
                 Is::Dart(..) => ("dart", atlas::CRUSHED, CENTER),
+                Is::Spill{ref progress} => {
+                    display.fill(BLACK, Rect::new(self.1.position.x() as i32, self.1.position.y() as i32, progress.start as u32, 3)).ok();
+                    return
+                }
                 Is::Stair(direction, ..) => ("stairs", match direction {Vertical::Up => atlas::STAIRS_UP, Vertical::Down => atlas::STAIRS_DOWN}, BOTTOM),
                 #[cfg(debug_assertions)]
                 _ => return eprintln!("Object {:?} NOT IMPLEMENTED yet.", self.1)
