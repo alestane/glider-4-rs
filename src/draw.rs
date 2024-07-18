@@ -116,8 +116,10 @@ mod object {
                 Is::RubberBands(..) => ("collectible", atlas::BANDS, BOTTOM),
                 Is::Grease{ready: true, ..} => ("grease", atlas::UPRIGHT, BOTTOMRIGHT),
                 Is::Grease{ready: false, progress: Range{start: ..-1, ..}} => ("grease", atlas::TIPPING, BOTTOMRIGHT),
-                Is::Grease{progress: Range{start: width@1.., ..}, ..} => {
-                    display.fill(BLACK, Rect::new(self.1.position.x() as i32, self.1.position.y() as i32, width as u32, 2)).ok();
+                Is::Grease{progress: Range{start, ..}, ..} => {
+                    if start > 0 {
+                        display.fill(BLACK, Rect::new(self.1.position.x() as i32, self.1.position.y() as i32, start as u32, 2)).ok();
+                    }
                     ("grease", atlas::TIPPED, BOTTOMRIGHT)
                 }
                 Is::FloorVent { .. } => ("blowers", atlas::UP, TOP),
@@ -444,11 +446,7 @@ mod room {
             ).collect::<Vec<_>>();
 
             for (id, item) in items.into_iter().filter(|&(_, o)| o.is_dynamic()) {
-                let frame = match item.kind {
-                    object::Kind::Grease{ready: true, ..} => Some(atlas::UPRIGHT),
-                    object::Kind::Grease{..} => animations.check(id.get()).or(Some(atlas::TIPPED)),
-                    _ => animations.check(id.get())
-                };
+                let frame = animations.check(id.get());
                 (frame, item).show(display);
             }
             for _frame in play.debug_zones() {
