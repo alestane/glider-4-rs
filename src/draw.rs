@@ -114,7 +114,12 @@ mod object {
                 Is::Battery(..) => ("collectible", atlas::BATTERY, BOTTOM),
                 Is::Paper(..) => ("collectible", atlas::PAPER, BOTTOM),
                 Is::RubberBands(..) => ("collectible", atlas::BANDS, BOTTOM),
-                Is::Grease{..} => ("grease", match self.0.into() {Some(1) => atlas::TIPPING, Some(2) => atlas::TIPPED, _=> atlas::UPRIGHT}, BOTTOM),
+                Is::Grease{ready: true, ..} => ("grease", atlas::UPRIGHT, BOTTOMRIGHT),
+                Is::Grease{ready: false, progress: Range{start: ..-1, ..}} => ("grease", atlas::TIPPING, BOTTOMRIGHT),
+                Is::Grease{progress: Range{start: width@1.., ..}, ..} => {
+                    display.fill(BLACK, Rect::new(self.1.position.x() as i32, self.1.position.y() as i32, width as u32, 2)).ok();
+                    ("grease", atlas::TIPPED, BOTTOMRIGHT)
+                }
                 Is::FloorVent { .. } => ("blowers", atlas::UP, TOP),
                 Is::CeilingVent { .. } => ("blowers", atlas::DOWN, BOTTOM),
                 Is::CeilingDuct { .. } => ("blowers", atlas::DUCT, BOTTOM),
@@ -134,10 +139,6 @@ mod object {
                 Is::Balloon(..) => ("balloon", atlas::POPPED, CENTER),
                 Is::Copter(..) => ("copter", atlas::CRUMPLED, CENTER),
                 Is::Dart(..) => ("dart", atlas::CRUSHED, CENTER),
-                Is::Spill{ref progress} => {
-                    display.fill(BLACK, Rect::new(self.1.position.x() as i32, self.1.position.y() as i32, progress.start as u32, 3)).ok();
-                    return
-                }
                 Is::Stair(direction, ..) => ("stairs", match direction {Vertical::Up => atlas::STAIRS_UP, Vertical::Down => atlas::STAIRS_DOWN}, BOTTOM),
                 #[cfg(debug_assertions)]
                 _ => return eprintln!("Object {:?} NOT IMPLEMENTED yet.", self.1)
