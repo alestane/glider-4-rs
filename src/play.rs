@@ -34,10 +34,6 @@ impl Object {
                 kind: Kind::Flame,
                 position: self.position - (3, 27),
             },
-            Kind::Grease { range, .. } => Object{
-                kind: Kind::Spill { progress: -3..(range as i16 + 1) },
-                position: self.active_area()? * (Span::Right, Rise::Bottom) - (0, 1),
-            },
             Kind::Drip { range } => Object{
                 kind: Kind::Drop(Motion::new(-8, (range as i16) << 5 + 1, 12)),
                 position: self.position,
@@ -157,7 +153,7 @@ impl Room {
             self.objects.iter().enumerate().filter_map(|(index, object)| (!object.is_cosmetic()).then(|| (unsafe{ NonZero::new_unchecked(index + 1) }, object.clone()) ))
         );
         let mut spawns = BTreeMap::from_iter(items.iter().filter_map(|(_, host)| 
-            host.effect().map(|child| (Play::child_id(host), child))));
+            host.effect().map(|child| { eprintln!("{host:?}: {:X}", Play::child_id(host)); (Play::child_id(host), child) })));
         items.append(&mut spawns);
         items.extend(self.animate.as_ref().map(|(count, kind)| 
             from_fn(move || kind.new()).take(count.get() as usize)
@@ -189,7 +185,7 @@ impl super::object::Object {
             Kind::CeilingDuct {..} | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
             Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(faces, 0..11))) }
             Kind::Grease {..} => Some(Event::Action(Change::Spill)),
-            Kind::Spill{..} => Some(Event::Control(State::Sliding(test.x()))),
+            Kind::Spill{..} => Some(Event::Control(State::Sliding(test.y()))),
             Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
             Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} |
             Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..)
@@ -289,11 +285,15 @@ enum Change {
         let events = if collision {
             if let Ok(touch) = Bounds::try_from(PLAYER_SIZE / (Span::Center, Rise::Center) << self.player) {
                 let inactive = self.items.values().filter_map(
-                    |host| if let Kind::Grease{ready: false, ..} = host.kind { 
+                    |host| if let Kind::Grease{ready: true, ..} = host.kind { 
                         Some(Play::child_id(host))
                     } else { None }
                 ).collect::<BTreeSet<_>>();
-                for (_, animated) in self.items.iter_mut().filter(|(&index, entity)| !inactive.contains(&index) && entity.is_animated()) {
+                eprintln!("{inactive:X?}");
+                for (id, animated) in self.items.iter_mut().filter(|(&index, entity)| !inactive.contains(&index) && entity.is_animated()) {
+                    if let object::Kind::Spill{..} = animated.kind {
+                        eprintln!("{id:X?}");
+                    }
                     animated.advance();
                 }
                 let objects = 

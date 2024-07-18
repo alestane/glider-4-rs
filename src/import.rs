@@ -350,7 +350,7 @@ impl TryFrom<binary::Object> for Object {
 
             16 => Kind::Clock(amount),
             17 => Kind::Paper(amount),
-            18 => Kind::Grease{range: amount - bounds.right() as u16, ready},
+            18 => Kind::Grease{progress: -3..(amount as i16 - bounds.right()), ready},
             19 => Kind::Bonus(amount, bounds.size()),
             20 => Kind::Battery(amount as u8),
             21 => Kind::RubberBands(amount as u8),

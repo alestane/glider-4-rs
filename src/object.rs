@@ -63,7 +63,7 @@ pub enum Kind {
 
     Clock(u16),
     Paper(u16),
-    Grease{range: u16, ready: bool},
+    Grease{progress: Interval, ready: bool},
     Spill{progress: Interval},
     Bonus(u16, Size),
     Battery(u8),
