@@ -184,8 +184,8 @@ impl super::object::Object {
             Kind::CeilingDuct { destination, ready: false, ..} => Some(Event::Control(State::Escaping(destination, 0..16))),
             Kind::CeilingDuct {..} | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
             Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(faces, 0..11))) }
-            Kind::Grease {..} => Some(Event::Action(Change::Spill)),
-            Kind::Spill{..} => Some(Event::Control(State::Sliding(test.y()))),
+            Kind::Grease {ready: true, ..} => Some(Event::Action(Change::Spill)),
+            Kind::Grease {ready: false, ..} => Some(Event::Control(State::Sliding(test.y()))),
             Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
             Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} |
             Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..)
@@ -284,16 +284,7 @@ enum Change {
         });
         let events = if collision {
             if let Ok(touch) = Bounds::try_from(PLAYER_SIZE / (Span::Center, Rise::Center) << self.player) {
-                let inactive = self.items.values().filter_map(
-                    |host| if let Kind::Grease{ready: true, ..} = host.kind { 
-                        Some(Play::child_id(host))
-                    } else { None }
-                ).collect::<BTreeSet<_>>();
-                eprintln!("{inactive:X?}");
-                for (id, animated) in self.items.iter_mut().filter(|(&index, entity)| !inactive.contains(&index) && entity.is_animated()) {
-                    if let object::Kind::Spill{..} = animated.kind {
-                        eprintln!("{id:X?}");
-                    }
+                for (id, animated) in self.items.iter_mut().filter(|(_, entity)| entity.is_animated()) {
                     animated.advance();
                 }
                 let objects = 

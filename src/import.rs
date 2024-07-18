@@ -286,9 +286,10 @@ impl object::Kind {
             Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..) |
             Is::Dart(..) | Is::Copter(..) | Is::Balloon(..)
                 => (Span::Center, Rise::Center),
+            Is::Grease{..} 
+                => (Span::Right, Rise::Bottom),
             Is::Stair(..) |
             Is::CeilingVent{..} | Is::CeilingDuct{..} | Is::Fan{..} | Is::Candle{..} |
-            Is::Grease{..} |
             Is::RubberBands(..) | Is::Clock(..) | Is::Paper(..) | Is::Battery(..) |
             Is::Guitar |
             Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | Is::Bounce{..} |

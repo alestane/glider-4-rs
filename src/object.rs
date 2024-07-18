@@ -64,7 +64,6 @@ pub enum Kind {
     Clock(u16),
     Paper(u16),
     Grease{progress: Interval, ready: bool},
-    Spill{progress: Interval},
     Bonus(u16, Size),
     Battery(u8),
     RubberBands(u8),
@@ -100,8 +99,6 @@ impl Kind {
     pub(super) const fn anchor(&self) -> (Span, Rise) {
         type Is = Kind;
         match self {
-            Is::Spill{..} 
-                => (Span::Left, Rise::Top),
             Is::Steam{..} 
                 => (Span::Right, Rise::Bottom),
             Is::Table{..} | Is::Shelf {..} |
@@ -119,9 +116,10 @@ impl Kind {
                 => (Span::Center, Rise::Center),
             Is::Fan{faces, ..} 
                 => (Span::from(-faces), Rise::Center),
+            Is::Grease{ready: true, ..} => (Span::Right, Rise::Bottom),
+            Is::Grease{ready: false, ..} => (Span::Left, Rise::Center),
             Is::Stair(Vertical::Down, ..) |
             Is::FloorVent{..} | Is::Candle{..} |
-            Is::Grease{..} |
             Is::RubberBands(..) | Is::Clock(..) | Is::Paper(..) | Is::Battery(..) |
             Is::Guitar |
             Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | Is::Bounce{..} |
@@ -144,7 +142,7 @@ impl Object {
     pub fn is_animated(&self) -> bool {
         match self.kind {
             Kind::Ball(..) | Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..) | Kind::Drop(..) |
-            Kind::Fish(..) | Kind::Outlet{..} | Kind::Spill{..} | Kind::Steam{..} | Kind::Toast(..)
+            Kind::Fish(..) | Kind::Outlet{..} | Kind::Grease{..} | Kind::Steam{..} | Kind::Toast(..)
                 => true,
             _ => false,
         }
@@ -183,6 +181,7 @@ impl Object {
             Kind::RubberBands(..) => const{ Size::new(32, 23) },
             Kind::Switch(..) | Kind::Thermostat => const{ Size::new(18, 27) },
             Kind::Grease {ready: true, ..} => const{ Size::new(32, 29) },
+            Kind::Grease {ready: false, progress: Range{start, ..}} if start > 0 => Size::new(start as u16, 2),
             Kind::Dart(..) => const{ Size::new(64, 22) },
             Kind::Ball(..) | Kind::Copter(..) | Kind::Balloon(..) => const{ Size::new(32, 32) },
             Kind::Drop(..) => const{ Size::new(16, 14) },
@@ -198,16 +197,15 @@ impl Object {
                 *position.y_mut() += 3;
                 const{ Size::new(16, 16) }
             }
-            Kind::Spill{ref progress} => {
-                *position.y_mut() -= 56;
-                Size::new(progress.start.max(0) as u16, 2)
-            }
             Kind::Steam{progress: Range{start: ..0, ..}} => { 
                 *position.x_mut() -= 20;
                 *position.y_mut() -= 30;
                 const{ Size::new(128, 128) } 
             }
-            Kind::Guitar => const{ Size::new(2, 90) },
+            Kind::Guitar => {
+                *position.y_mut() -= 56;
+                const{ Size::new(2, 90) }
+            }
             Kind::Window(..) | Kind::Painting | Kind::Mirror(..) | Kind::Bounce{..} | Kind::Teakettle{..} => None,
             _ => None
         }?;
@@ -237,7 +235,6 @@ impl Object {
             Kind::Flame |
             Kind::Drop(..) |
             Kind::Outlet{..} |
-            Kind::Spill{..} |
             Kind::Toast(..) |
             Kind::Toaster{..} |
             Kind::Switch(None)
