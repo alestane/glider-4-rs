@@ -49,7 +49,7 @@ impl Object {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum State {
-	Escaping(Option<room::Id>),
+	Escaping(Option<room::Id>, Range<u8>),
     Sliding(i16),
     FadingIn(Range<u8>),
     FadingOut(Range<u8>),
@@ -65,7 +65,7 @@ const IGNITE: State = State::Burning(0..150);
 impl State {
     fn outcome(&self, score: u32) -> Option<Outcome> {
         Some(match self {
-			Self::Escaping(to) => Outcome::Leave { score, destination: to.map(|room::Id(id)| (id, Entrance::Air))},
+			Self::Escaping(to, time) if time.start >= time.end => Outcome::Leave { score, destination: to.map(|room::Id(id)| (id, Entrance::Air))},
             Self::FadingOut(_) | Self::Burning(_) /* | Self::Shredding(_) */ => Outcome::Dead,
             Self::Ascending(room::Id(room), _) /*| Self::Descending(RoomId(room), _)*/
                  => Outcome::Leave{score, destination: Some((*room, Entrance::Down))},
@@ -80,8 +80,8 @@ impl std::iter::Iterator for State {
     type Item = (Displacement, bool);
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-        	Self::Escaping(..) => None,
             Self::Sliding(..) => None,
+        	Self::Escaping(_, phase) |
             Self::FadingIn(phase)   |
             Self::FadingOut(phase)  |
             Self::Turning(_, phase)  
@@ -106,8 +106,8 @@ enum Event {
 impl From<&State> for u8 {
     fn from(value: &State) -> Self {
         match value {
-        	State::Escaping(None) => 0,
-        	State::Escaping(_) => 1,
+        	State::Escaping(None, _) => 0,
+        	State::Escaping(..) => 1,
             State::Sliding(..) => 15u8, 
             State::Ascending(..) | State::Descending(..) 
                 => 16u8,
@@ -133,7 +133,6 @@ impl std::cmp::Ord for State {
 }
 
 const PLAYER_SIZE: Size = const{ Size::new(28, 10).unwrap() };
-
 
 pub struct Play {
     walls: &'static [Object],
@@ -185,7 +184,8 @@ impl super::object::Object {
         let previous = *motion;
         let (h, v) = motion.as_mut();
         match self.kind {
-            Kind::CeilingDuct { destination, ready: false, ..} => Some(Event::Control(State::Escaping(destination))),
+            Kind::Exit{to: destination, ..} |
+            Kind::CeilingDuct { destination, ready: false, ..} => Some(Event::Control(State::Escaping(destination, 0..16))),
             Kind::CeilingDuct {..} | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
             Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(faces, 0..11))) }
             Kind::Grease {..} => Some(Event::Action(Change::Spill)),
@@ -251,7 +251,7 @@ enum Change {
     pub fn frame(&mut self, actions: &[Input]) -> Outcome {
         let mut signal = self.now.as_ref().map(|s| match s {
             State::FadingIn(..) => vec![Update::Fade(true)],
-            State::FadingOut(..) => vec![Update::Fade(false)],
+            State::FadingOut(..) | State::Escaping(Some(_), ..) => vec![Update::Fade(false)],
             State::Burning(..) => vec![Update::Burn],
             State::Turning(..) => vec![Update::Turn(self.facing)],
             _ => vec![],
