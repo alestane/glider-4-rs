@@ -133,7 +133,7 @@ mod object {
                 Is::Outlet{progress: Range{start: phase@..=0, ..}} => ("shock", phase.rem_euclid(2) as usize, CENTER),
                 Is::Outlet{..} => ("power", atlas::OUTLET, CENTER),
                 Is::Drip {..} => ("water", atlas::STILL_DRIP, TOP),
-                Is::Drop(Motion{limit: Range{start, ..}, ..}) => ("water", 5usize.saturating_add_signed(start as isize / 2).min(4), TOP),
+                Is::Drop(Motion{limit: Range{start, ..}, ..}) => ("water", 4usize.saturating_add_signed(start as isize / 2).min(4), TOP),
                 Is::Macintosh => ("visual", atlas::COMPUTER, BOTTOM),
                 Is::Books => ("visual", atlas::BOOKS, BOTTOM),
                 Is::Painting => ("visual", atlas::PAINTING, CENTER),
