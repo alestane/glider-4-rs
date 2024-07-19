@@ -51,13 +51,15 @@ impl Iterator for object::Kind {
                 }
                 if motion.limit.start >= motion.limit.end { 
                     motion.velocity = 0;
-                    motion.limit.start = -8;
-                    return None 
+                    let reset = motion.limit.start >> 5;
+                    motion.limit.start = -7;
+                    (0, -reset)
+                } else {
+                    let position = motion.limit.start >> 5;
+                    motion.velocity += motion.acceleration;
+                    motion.limit.start += motion.velocity;
+                    (0, (motion.limit.start >> 5) - position)
                 }
-                let position = motion.limit.start >> 5;
-                motion.velocity += motion.acceleration;
-                motion.limit.start += motion.velocity;
-                (0, (motion.limit.start >> 5) - position)
             }
             Is::Ball(motion) | Is::Toast(motion) | Is::Fish(motion) => {
                 (0, motion.next()?)

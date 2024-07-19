@@ -35,7 +35,7 @@ impl Object {
                 position: self.position - (3, 27),
             },
             Kind::Drip { range } => Object{
-                kind: Kind::Drop(Motion::new(-8, (range as i16) << 5 + 1, 12)),
+                kind: Kind::Drop(Motion::new(-7, (range as i16) << 5 + 1, 12)),
                 position: self.position,
             },
             _ => return None
