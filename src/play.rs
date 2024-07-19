@@ -27,22 +27,6 @@ impl Entrance {
     }
 }
 
-impl Object {
-    fn effect(&self) -> Option<Object> {
-        Some(match self.kind {
-            Kind::Candle {..} => Object{
-                kind: Kind::Flame,
-                position: self.position - (3, 27),
-            },
-            Kind::Drip { range } => Object{
-                kind: Kind::Drop(Motion::new(-7, (range as i16) << 5 + 1, 12)),
-                position: self.position,
-            },
-            _ => return None
-        })
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum State {
 	Escaping(Option<room::Id>, Range<u8>),
@@ -182,7 +166,21 @@ impl Room {
     }
 }
 
-impl super::object::Object {
+impl Object {
+    fn effect(&self) -> Option<Object> {
+        Some(match self.kind {
+            Kind::Candle {..} => Object{
+                kind: Kind::Flame,
+                position: self.position - (3, 27),
+            },
+            Kind::Drip { range } => Object{
+                kind: Kind::Drop(Motion::new(-7, (range as i16) << 5 + 1, 12)),
+                position: self.position,
+            },
+            _ => return None
+        })
+    }
+
     fn action(&self, mut test: Bounds, motion: &mut Displacement, id: object::Id, state: &Play) -> Option<Event> {
         use object::Kind;
         let previous = *motion;
