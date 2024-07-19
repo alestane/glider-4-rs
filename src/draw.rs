@@ -136,6 +136,7 @@ mod object {
                 Is::Drop(Motion{limit: Range{start, ..}, ..}) => ("water", 4usize.saturating_add_signed(start as isize / 2).min(4), TOP),
                 Is::Macintosh => ("visual", atlas::COMPUTER, BOTTOM),
                 Is::Books => ("visual", atlas::BOOKS, BOTTOM),
+                Is::Basket => ("visual", atlas::BASKET, BOTTOM),
                 Is::Painting => ("visual", atlas::PAINTING, CENTER),
                 Is::Guitar => ("visual", atlas::GUITAR, BOTTOM),
                 Is::Flame => ("fire", 0, CENTER),
