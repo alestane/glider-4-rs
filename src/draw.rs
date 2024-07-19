@@ -130,6 +130,7 @@ mod object {
                 Is::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT, BOTTOM),
                 // Is::Switch(Some(..)) => ("power", atlas::TOGGLE),
                 Is::Switch(None) => ("power", atlas::SWITCH, CENTER),
+                Is::Outlet{progress: Range{start: phase@..=0, ..}} => ("shock", phase.rem_euclid(2) as usize, CENTER),
                 Is::Outlet{..} => ("power", atlas::OUTLET, CENTER),
                 Is::Drip {..} => ("water", atlas::STILL_DRIP, TOP),
                 Is::Drop(Motion{limit: Range{start, ..}, ..}) => ("water", 5usize.saturating_add_signed(start as isize / 2).min(4), TOP),
