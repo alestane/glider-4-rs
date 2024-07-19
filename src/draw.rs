@@ -128,10 +128,11 @@ mod object {
                 Is::Candle { .. } => ("blowers", atlas::CANDLE, BOTTOM),
                 Is::Fan { faces: Side::Right, .. } => ("blowers", atlas::FAN_RIGHT, BOTTOM),
                 Is::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT, BOTTOM),
-                // Is::Switch(Some(..)) => ("power", atlas::TOGGLE),
+                Is::Switch(Some(..)) => ("power", atlas::TOGGLE, CENTER),
                 Is::Switch(None) => ("power", atlas::SWITCH, CENTER),
                 Is::Outlet{progress: Range{start: phase@..=0, ..}} => ("shock", phase.rem_euclid(2) as usize, CENTER),
                 Is::Outlet{..} => ("power", atlas::OUTLET, CENTER),
+                Is::Shredder{..} => ("visual", atlas::SHREDDER, TOP),
                 Is::Drip {..} => ("water", atlas::STILL_DRIP, TOP),
                 Is::Drop(Motion{limit: Range{start, ..}, ..}) => ("water", 4usize.saturating_add_signed(start as isize / 2).min(4), TOP),
                 Is::Macintosh => ("visual", atlas::COMPUTER, BOTTOM),
@@ -434,6 +435,7 @@ mod room {
             let facing = match facing {Some(Side::Left) => "glider.left", Some(Side::Right) => "glider.right", _ => "glider.turn"};
             let frame = animations.check(0).unwrap_or(if backward {atlas::TIPPED} else {atlas::LEVEL});
             if facing == "glider.turn" { eprintln!("{frame}") }
+            display.sprite((player_position.0, VERT_FLOOR as i16), TOP, facing, atlas::SHADOW);
             let items = play.visible_items().filter(
                 |&(_, o)| {
                     if let object::Kind::Mirror(size) = o.kind {
@@ -455,7 +457,6 @@ mod room {
             for _frame in play.debug_zones() {
                 // display.fill((0, 255, 0, 100), space::Rect::from(frame).into()).ok();
             }
-            display.sprite((player_position.0, VERT_FLOOR as i16), TOP, facing, atlas::SHADOW);
             display.sprite((player_position.0, player_position.1 + 10), BOTTOM, facing, frame);
             display.publish();
         }
