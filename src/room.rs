@@ -2,12 +2,12 @@ use std::{num::NonZero, slice::SliceIndex, ops::Index};
 
 use super::{*, object::Object};
 
-pub const SCREEN_HEIGHT:	u16 = 342;
-pub const SCREEN_WIDTH:		u16 = 512;
-pub const VERT_CEILING:		u16 = 24;
-pub const VERT_FLOOR:		u16 = 325;
+pub const SCREEN_HEIGHT:	i16 = 342;
+pub const SCREEN_WIDTH:		i16 = 512;
+pub const VERT_CEILING:		i16 = 24;
+pub const VERT_FLOOR:		i16 = 325;
 
-pub const BOUNDS:	Bounds = unsafe { Bounds::new_unchecked(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT) };
+pub const BOUNDS:	Bounds = const{ Bounds::new(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT).unwrap() };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -34,35 +34,6 @@ impl Id {
     pub fn next(&self) -> Option<Id> { Some(Id(self.0.checked_add(1)?)) }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Active {
-    Dart,
-    Copter,
-    Balloon,
-    Flame,
-    Fish,
-    Ball,
-    Toast,
-    Shock,
-    Spill,
-    Drop,
-}
-
-
-impl From<object::Kind> for Option<Active> {
-    fn from(value: object::Kind) -> Self {
-        Some(match value {
-            object::Kind::Candle { .. } => Active::Flame,
-            object::Kind::Fishbowl { .. } => Active::Fish,
-            object::Kind::Ball{ .. } => Active::Ball,
-            object::Kind::Toaster { .. } => Active::Toast,
-            object::Kind::Outlet { .. } => Active::Shock,
-            object::Kind::Grease { .. } => Active::Spill,
-            _ => return None
-        })
-    }
-} 
-
 #[disclose]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct On {
@@ -71,14 +42,38 @@ pub(crate) struct On {
 }
 
 #[disclose]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Exits {
+    left: Option<Id>,
+    right: Option<Id>,
+}
+
+impl Index<Side> for Exits {
+    type Output = Option<Id>;
+    fn index(&self, index: Side) -> &Self::Output {
+        match index {
+            Side::Left => &self.left,
+            Side::Right => &self.right,
+        }
+    }
+}
+
+impl Exits {
+    pub fn walls(&self) -> impl SliceIndex<[Object], Output=[Object]> {
+        fn step(i: Option<room::Id>) -> usize { i.is_some() as usize }
+
+        step(self.left)..=(2 - step(self.right))
+    }
+}
+
+#[disclose]
 #[derive(Debug)]
 pub struct Room {
     name: String,
     back_pict_id: u16,
     tile_order: [u8; 8],
-    left_open: Option<Id>,
-    right_open: Option<Id>,
-    animate: Option<(Active, NonZero<u16>, u32)>,
+    exits: Exits,
+    animate: Option<(NonZero<u16>, object::Kind)>,
     environs: On,
     objects: Vec<Object>,
 }
@@ -112,11 +107,7 @@ impl<'a> TryFrom<(NonZero<u16>, &'a [u8])> for Room {
 }
 
 impl Room {
-    pub fn walls(&self) -> impl SliceIndex<[Object], Output=[Object]> {
-        fn step(i: Option<room::Id>) -> usize { i.is_some() as usize }
-
-        step(self.left_open)..=(2 - step(self.right_open))
-    }
+    pub fn walls(&self) -> impl SliceIndex<[Object], Output=[Object]> { self.exits.walls() }
 
     pub fn len(&self) -> usize { self.objects.len() }
     
@@ -125,5 +116,12 @@ impl Room {
         
 impl std::ops::Index<Side> for Room {
 	type Output = Option<room::Id>;
-	fn index(&self, which: Side) -> &Self::Output { match which {Side::Left=>&self.left_open, Side::Right=>&self.right_open} }
+	fn index(&self, which: Side) -> &Self::Output { &self.exits[which] }
+}
+
+impl IntoIterator for Room {
+    type Item = Object;
+    type IntoIter = <Vec<Object> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter { self.objects.into_iter() }
 }

@@ -17,7 +17,7 @@ fn random() -> u16 {
 }
 
 pub type Frame = Box<dyn Iterator<Item = usize>>;
-pub type Animations = RefCell<HashMap<u8, Frame>>;
+pub type Animations = RefCell<HashMap<usize, Frame>>;
 
 const BLACK     : Color = Color::RGB(0x00, 0x00, 0x00);
 const WHITE     : Color = Color::RGB(0xFF, 0xFF, 0xFF);
@@ -36,18 +36,18 @@ pub trait Visible {
 }
 
 trait Animator {
-    fn check(&self, id: u8) -> Option<usize>;
-    fn check_or_else(&self, id: u8, f: impl FnOnce(u8) -> Option<Frame>) -> usize;
+    fn check(&self, id: usize) -> Option<usize>;
+    fn check_or_else(&self, id: usize, f: impl FnOnce(usize) -> Option<Frame>) -> usize;
 }
 
 impl Animator for Animations {
-    fn check(&self, id: u8) -> Option<usize> { 
+    fn check(&self, id: usize) -> Option<usize> { 
         let mut list = self.borrow_mut();
         let index = list.get_mut(&id).and_then(|id| id.next());
         if index.is_none() { list.remove(&id); }
         index
      }
-     fn check_or_else(&self, id: u8, f: impl FnOnce(u8) -> Option<Frame>) -> usize {
+     fn check_or_else(&self, id: usize, f: impl FnOnce(usize) -> Option<Frame>) -> usize {
         let mut list = self.borrow_mut();
         if let Some(seq) = list.get_mut(&id) {
             Some(seq)
@@ -59,13 +59,12 @@ impl Animator for Animations {
     }
 }
 
-trait Cycle {
-    fn start(&self, seed: u8) -> Option<Frame>;
-}
-
 mod object {
     type Frame = space::Rect;
     pub type Kind = glider::prelude::object::Kind;
+    pub type Motion = glider::prelude::object::Motion;
+    use std::ops::Range;
+
     use super::*;
 
     impl Visible for Object {
@@ -78,7 +77,7 @@ mod object {
                         draw_table(display, Frame::from(bounds).into())
                     }
                     Is::Shelf{width} => {
-                        draw_shelf(display, space::Rect::from((self.position - (width.get() / 2, 0), Size::from((width, const{ NonZero::new(5).unwrap() })))))
+                        draw_shelf(display, space::Rect::from((self.position - (width.get() as i16 / 2, 0), Size::from((width, const{ NonZero::new(5).unwrap() })))))
                     }
                     Is::Cabinet(size) => {
                         let (width, height) = (size.width() as u32, size.height() as u32);
@@ -115,7 +114,14 @@ mod object {
                 Is::Battery(..) => ("collectible", atlas::BATTERY, BOTTOM),
                 Is::Paper(..) => ("collectible", atlas::PAPER, BOTTOM),
                 Is::RubberBands(..) => ("collectible", atlas::BANDS, BOTTOM),
-                Is::Grease{..} => ("grease", match self.0.into() {Some(1) => atlas::TIPPING, Some(2) => atlas::TIPPED, _=> atlas::UPRIGHT}, BOTTOM),
+                Is::Grease{ready: true, ..} => ("grease", atlas::UPRIGHT, BOTTOMRIGHT),
+                Is::Grease{ready: false, progress: Range{start: ..-1, ..}} => ("grease", atlas::TIPPING, BOTTOMRIGHT),
+                Is::Grease{progress: Range{start, ..}, ..} => {
+                    if start > 0 {
+                        display.fill(BLACK, Rect::new(self.1.position.x() as i32, self.1.position.y() as i32, start as u32, 2)).ok();
+                    }
+                    ("grease", atlas::TIPPED, BOTTOMRIGHT)
+                }
                 Is::FloorVent { .. } => ("blowers", atlas::UP, TOP),
                 Is::CeilingVent { .. } => ("blowers", atlas::DOWN, BOTTOM),
                 Is::CeilingDuct { .. } => ("blowers", atlas::DUCT, BOTTOM),
@@ -126,10 +132,15 @@ mod object {
                 Is::Switch(None) => ("power", atlas::SWITCH, CENTER),
                 Is::Outlet{..} => ("power", atlas::OUTLET, CENTER),
                 Is::Drip {..} => ("water", atlas::STILL_DRIP, TOP),
+                Is::Drop(Motion{limit: Range{start, ..}, ..}) => ("water", 5usize.saturating_add_signed(start as isize / 2).min(4), TOP),
                 Is::Macintosh => ("visual", atlas::COMPUTER, BOTTOM),
                 Is::Books => ("visual", atlas::BOOKS, BOTTOM),
                 Is::Painting => ("visual", atlas::PAINTING, CENTER),
                 Is::Guitar => ("visual", atlas::GUITAR, BOTTOM),
+                Is::Flame => ("fire", 0, CENTER),
+                Is::Balloon(..) => ("balloon", atlas::POPPED, CENTER),
+                Is::Copter(..) => ("copter", atlas::CRUMPLED, CENTER),
+                Is::Dart(..) => ("dart", atlas::CRUSHED, CENTER),
                 Is::Stair(direction, ..) => ("stairs", match direction {Vertical::Up => atlas::STAIRS_UP, Vertical::Down => atlas::STAIRS_DOWN}, BOTTOM),
                 #[cfg(debug_assertions)]
                 _ => return eprintln!("Object {:?} NOT IMPLEMENTED yet.", self.1)
@@ -371,45 +382,6 @@ mod object {
     }    
 }    
 
-mod hazard {
-    type Frame = space::Rect;
-    use super::*;
-
-    impl Visible for (usize, Active, (i16, i16)) {
-        fn show<Display: Scribe>(&self, display: &mut Display) {
-            let name = match self.1 {
-                Active::Dart => "dart",
-            	Active::Balloon => "balloon",
-                Active::Copter => "copter",
-                Active::Flame => "fire",
-                Active::Shock => "power", 
-                Active::Drop => "water",
-                Active::Spill => return { display.fill(BLACK, Rect::new(self.2.0 as i32, self.2.1 as i32, self.0 as u32, 3)).ok();},
-                _ => return
-            };
-            display.sprite(self.2, CENTER, name, self.0)
-        }
-    }
-
-    impl Cycle for Active {
-        fn start(&self, seed: u8) -> Option<super::Frame> {
-            let range = match self {
-                Active::Dart => atlas::FLYING,
-                Active::Balloon => atlas::RISING,
-                Active::Copter => atlas::FALLING,
-                Active::Flame => atlas::FLAME,
-                Active::Shock => atlas::SPARK,
-                Active::Drop => atlas::DRIP,
-                _ => return None
-            };
-            let skip = seed as usize % NonZero::new(range.end - range.start)?.get();
-            let mut c = range.cycle().map(|i| repeat(i).take(2)).flatten();
-            c.advance_by(skip).ok();
-            Some(Box::new(c))
-        }
-    }
-}
-
 mod room {
     use super::*; 
 
@@ -426,6 +398,21 @@ mod room {
         }
     }
 
+    impl Visible for Vec<Object> {
+        fn show<Display: Scribe>(&self, display: &mut Display) {
+            for object in self.iter().filter(|&o| !o.is_dynamic()) {
+                object.show(display);
+            }
+        }
+    }
+
+    impl Visible for (&Texture<'_>, &Room) {
+        fn show<Display: Scribe>(&self, display: &mut Display) {
+            (self.0, self.1.tile_order).show(display);
+            self.1.objects.show(display);
+        }
+    }
+
     impl Visible for sdl2::pixels::Color {
         fn show<Display: Scribe>(&self, display: &mut Display) {
             display.clear(*self)
@@ -438,46 +425,35 @@ mod room {
         }
     }
 
-    impl Visible for (&glider::Play<'_>, &Animations) {
+    impl Visible for (&glider::Play, &Animations) {
         fn show<Display: Scribe>(&self, display: &mut Display) {
             let &(play, animations) = self;
             let (player_position, facing, backward) = play.player();
             let facing = match facing {Some(Side::Left) => "glider.left", Some(Side::Right) => "glider.right", _ => "glider.turn"};
             let frame = animations.check(0).unwrap_or(if backward {atlas::TIPPED} else {atlas::LEVEL});
-            if play.dark() {
-                for item in play.active_items().filter(|&o| matches!(o.kind, object::Kind::Switch(None))) {
-                    (None, item).show(display);
-                }
-            } else {
-                for (position, size) in play.active_items().filter_map(|&o| match o.kind{object::Kind::Mirror(size) => Some((o.position, size - (8, 8))), _ => None}) {
-                    let bounds = space::Rect::from(size / CENTER << position);
-                    display.clipping(bounds, |display|
-                        display.sprite((player_position.0 - 16, player_position.1 - 32), CENTER, facing, frame)
-                    );
-                }
-                for (id, item) in play.visible_entries().filter(|(_, &o)| o.dynamic()) {
-                    let frame = match item.kind {
-                        object::Kind::Grease{..} if play.is_ready(id) => Some(atlas::UPRIGHT),
-                        object::Kind::Grease{..} => animations.check(id.get() as u8).or(Some(atlas::TIPPED)),
-                        _ => None
+            let items = play.visible_items().filter(
+                |(_, o)| {
+                    if let object::Kind::Mirror(size) = o.kind {
+                        let size = size - (8, 8);
+                        let bounds = space::Rect::from(size / CENTER << o.position);
+                        display.clipping(bounds, |display|
+                            display.sprite((player_position.0 - 16, player_position.1 - 32), CENTER, facing, frame)
+                        );
+                        return false;
                     };
-                    (frame, item).show(display);
+                    o.is_dynamic()
                 }
+            ).collect::<Vec<_>>();
+
+            for (id, item) in items.into_iter().filter(|&(_, o)| o.is_dynamic()) {
+                let frame = animations.check(id.get());
+                (frame, item).show(display);
             }
-            for frame in play.debug_zones() {
+            for _frame in play.debug_zones() {
                 // display.fill((0, 255, 0, 100), space::Rect::from(frame).into()).ok();
             }
-            for (id, hazard, position, is_on) in play.active_hazards() {
-                if !is_on { continue; }
-                let position: space::Point = position.into();
-                let frame = match hazard {
-                    Active::Spill => id as usize, 
-                    _ => animations.check_or_else(id as u8, |id| hazard.start(id))
-                };
-                (frame, hazard, position.into()).show(display);
-            }
-            display.sprite((player_position.0, player_position.1 + 10), BOTTOM, facing, frame);
             display.sprite((player_position.0, VERT_FLOOR as i16), TOP, facing, atlas::SHADOW);
+            display.sprite((player_position.0, player_position.1 + 10), BOTTOM, facing, frame);
             display.publish();
         }
     }
@@ -508,6 +484,7 @@ impl<T> Illuminator for (&mut Canvas<Window>, T) {
     fn get_builder(&self) -> Self::Builder { self.0.get_builder() }
 }
 
+#[allow(private_bounds)]
 pub trait Scribe : Illuminator {
     fn clear(&mut self, color: sdl2::pixels::Color);
     fn publish(&mut self);

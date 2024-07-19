@@ -1,7 +1,7 @@
 use std::{fmt::Display, num::NonZero, time::{Duration, SystemTime}};
 
 use super::{*,
-    room::Room, 
+    room::{Exits, Room}, 
     object::Object, 
     house::House,
     cart::{Rise, Span},
@@ -25,7 +25,7 @@ impl TryFrom<[u16; 4]> for Bounds {
     fn try_from(data: [u16; 4]) -> Result<Self, Self::Error> {
         let (true, true) = (data[3] > data[1], data[2] > data[0]) else { return Err(BadRectError::Inverted)};
         match (NonZero::new(data[3] - data[1]), NonZero::new(data[2] - data[0])) {
-            (Some(..), Some(..)) => Ok(unsafe{ Bounds::new_unchecked(data[1], data[0], data[3], data[2])}),
+            (Some(..), Some(..)) => Ok(unsafe{ Bounds::new_unchecked(data[1] as i16, data[0] as i16, data[3] as i16, data[2] as i16)}),
             (width, height) => Err(BadRectError::Empty{width, height}),
         }
     }
@@ -283,16 +283,19 @@ impl object::Kind {
             Is::Painting{..} | Is::Mirror(..) | Is::Window(..) |
             Is::Bonus(..) |
             Is::Switch(..) | Is::Thermostat |
-            Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..)
+            Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..) |
+            Is::Dart(..) | Is::Copter(..) | Is::Balloon(..)
                 => (Span::Center, Rise::Center),
+            Is::Grease{..} 
+                => (Span::Right, Rise::Bottom),
             Is::Stair(..) |
             Is::CeilingVent{..} | Is::CeilingDuct{..} | Is::Fan{..} | Is::Candle{..} |
-            Is::Grease{..} |
             Is::RubberBands(..) | Is::Clock(..) | Is::Paper(..) | Is::Battery(..) |
             Is::Guitar |
-            Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | Is::Ball{..} |
+            Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | Is::Bounce{..} |
             Is::Books | Is::Basket | Is::Macintosh | Is::Wall(..) 
                 => (Span::Center, Rise::Bottom),
+            _ => (Span::Center, Rise::Center)
         }
     }
 }
@@ -336,34 +339,34 @@ impl TryFrom<binary::Object> for Object {
              2 => Kind::Shelf{width: bounds.width()},
              3 => Kind::Books, 
              4 => Kind::Cabinet(bounds.size()),
-             5 => Kind::Exit{to: Some(amount.into())},
+             5 => Kind::Exit{size: bounds.size(), to: Some(amount.into())},
              6 => Kind::Obstacle(bounds.size()),
 
-             8 => Kind::FloorVent{height:bounds.top() - amount},
-             9 => Kind::CeilingVent{height: amount - bounds.bottom()},
-            10 => Kind::CeilingDuct{height: amount - bounds.bottom(), destination: Some(extra.into()), ready},
-            11 => Kind::Candle{height: bounds.top() - amount},
-            12 => Kind::Fan{faces: Side::Left, range: bounds.left() - amount, ready},
-            13 => Kind::Fan{faces: Side::Right, range: amount - bounds.right(), ready},
+             8 => Kind::FloorVent{height:bounds.top() as u16 - amount},
+             9 => Kind::CeilingVent{height: amount - bounds.bottom() as u16},
+            10 => Kind::CeilingDuct{height: amount - bounds.bottom() as u16, destination: Some(extra.into()), ready},
+            11 => Kind::Candle{height: bounds.top() as u16 - amount},
+            12 => Kind::Fan{faces: Side::Left, range: bounds.left() as u16 - amount, ready},
+            13 => Kind::Fan{faces: Side::Right, range: amount - bounds.right() as u16, ready},
 
             16 => Kind::Clock(amount),
             17 => Kind::Paper(amount),
-            18 => Kind::Grease{range: amount - bounds.right(), ready},
+            18 => Kind::Grease{progress: -3..(amount as i16 - bounds.right()), ready},
             19 => Kind::Bonus(amount, bounds.size()),
-            20 => Kind::Battery(amount),
+            20 => Kind::Battery(amount as u8),
             21 => Kind::RubberBands(amount as u8),
 
             24 => Kind::Switch(None),
-            25 => Kind::Outlet{delay: amount, ready},
+            25 => Kind::Outlet{progress: -30..(amount as i16)},
             26 => Kind::Thermostat,
             27 => Kind::Shredder{ready},
             28 => Kind::Switch(Some(amount.into())),
             29 => Kind::Guitar,
 
-            32 => Kind::Drip{range: amount - bounds.top()},
-            33 => Kind::Toaster{range: bounds.top() - amount, delay: extra},
-            34 => Kind::Ball{range: bounds.bottom() - amount},
-            35 => Kind::Fishbowl{range: bounds.y() - amount, delay: extra},
+            32 => Kind::Drip{range: amount - bounds.top() as u16},
+            33 => Kind::Toaster{range: bounds.top() as u16 - amount, delay: extra},
+            34 => Kind::Bounce{range: bounds.bottom() as u16 - amount},
+            35 => Kind::Fishbowl{range: bounds.y() as u16 - amount, delay: extra},
             36 => Kind::Teakettle{delay: amount},
             37 => Kind::Window(bounds.size(), ready),
 
@@ -376,7 +379,8 @@ impl TryFrom<binary::Object> for Object {
 
             bad => return Err( BadObjectError::UnknownKind(bad) )
         };
-        Ok(Object{kind, position: bounds * kind.display_anchor()})
+        let anchor = kind.display_anchor();
+        Ok(Object{kind, position: bounds * anchor})
         
     }
 
@@ -404,17 +408,26 @@ impl From<std::convert::Infallible> for InvalidRoomError {
     }
 }
 
-struct EnemyCode(u16);
+struct EnemyCode(u16, i16);
 
-impl From<EnemyCode> for Option<room::Active> {
+impl From<EnemyCode> for Option<object::Kind> {
     fn from(value: EnemyCode) -> Self {
-        type Use = room::Active;
+        type Use = object::Kind;
         Some(match value.0 {
-            0 => Use::Dart,
-            1 => Use::Copter,
-            2 => Use::Balloon,
+            0 => Use::Dart(0..value.1),
+            1 => Use::Copter(0..value.1),
+            2 => Use::Balloon(0..value.1),
             _ => return None,
         })
+    }
+}
+
+impl From<(room::Id, [u8; 2])> for Exits {
+    fn from((id, open): (room::Id, [u8; 2])) -> Self {
+        Self {
+            left: NonZero::new(open[0]).and_then(|_| id.prev()),
+            right: NonZero::new(open[1]).and_then(|_| id.next()),
+        }
     }
 }
 
@@ -431,11 +444,9 @@ impl<T: TryInto<binary::Room>> TryFrom<(room::Id, T)> for Room where InvalidRoom
             name: string_from_pascal(&header.name),
             back_pict_id: u16::from_be_bytes(header.back_pict_id),
             tile_order: header.tile_order.map(|[_, n]| n),
-            left_open: NonZero::new(header.left_right_open[0]).and_then(|_| id.prev()),
-            right_open: (header.left_right_open[1] != 0).then_some(()).and_then(|_| id.next()),
+            exits: (id, header.left_right_open).into(),
             animate: NonZero::new(u16::from_be_bytes(header.animate_number))
-                .zip(EnemyCode(u16::from_be_bytes(header.animate_kind)).into())
-                .map(|(n, kind)| (kind, n, u32::from_be_bytes(header.animate_delay))),
+                .zip(EnemyCode(u16::from_be_bytes(header.animate_kind), u32::from_be_bytes(header.animate_delay) as i16).into()),
             environs: On {air: header.condition_code[1] != 1, lights: header.condition_code[1] != 2},
             objects: value.objects.into_iter().filter_map(|o| o.try_into().ok()).collect(),
         })

@@ -1,6 +1,6 @@
 #![feature(
     iter_next_chunk, slice_as_chunks, iterator_try_collect, is_none_or,
-    iter_advance_by,
+    iter_advance_by, iter_collect_into,
     const_trait_impl, effects, const_option,
     generic_arg_infer, generic_const_exprs, const_refs_to_cell,
     nonzero_internals
@@ -11,7 +11,7 @@ extern crate disclose;
 
 use std::{
     // num::NonZero, 
-    ops::{Mul, Neg}, 
+    ops::{Mul, Neg, Range}, 
     // time::{Duration, SystemTime}
 };
 
@@ -23,15 +23,14 @@ mod prelude {
         Input, Outcome, Success, Side, Vertical, Environment, Update, 
         Bounds, Position, Size, cart::{Span, Rise, Rect, Point},
         Object, Room, House, 
-        room::Active,
     };
     pub mod room {
     	pub use crate::room::{SCREEN_WIDTH, SCREEN_HEIGHT, VERT_CEILING, VERT_FLOOR};
         pub type Id = super::NonZero<u16>;
     }
     pub mod object {
-        pub use crate::object::Kind;
-        pub type Id = super::NonZero<u16>;
+        pub use crate::object::{Kind, Motion};
+        pub type Id = super::NonZero<usize>;
     }
 
     pub type Anchor = (Span, Rise);
@@ -48,8 +47,9 @@ mod prelude {
 
 mod cart;
 
-pub type Bounds = cart::Rect<u16>;
-pub type Position = cart::Point<u16>;
+pub type Bounds = cart::Rect<i16>;
+pub type Position = cart::Point<i16>;
+pub type Interval = Range<i16>;
 pub type Reference = cart::Point<i16>;
 pub type Displacement = cart::Displacement<i16>;
 pub type Size = cart::Size<u16>;
@@ -72,14 +72,15 @@ pub enum Environment {
     Guitar,
     Toast,
     Grease,
+    Switch,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum Update {
     Score(u16, object::Id),
-    Life,
-    Bands(u8),
-    Energy(u8),
+    Life(u16, object::Id),
+    Bands(u8, object::Id),
+    Energy(u8, object::Id),
     Shoot,
     Zoom,
     Start(Environment, Option<object::Id>),
