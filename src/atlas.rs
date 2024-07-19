@@ -4,7 +4,7 @@ use sdl2::{image::LoadTexture, render::Texture};
 
 use crate::space::Rect;
 
-const ITEMS: [Rect; 99] = [
+const ITEMS: [Rect; 100] = [
     Rect::new_signed(256, 0, 304, 11),      // shadow right
 
     Rect::new_signed(0,  0, 48, 20),        // forward right
@@ -127,6 +127,8 @@ const ITEMS: [Rect; 99] = [
 
     Rect::new_signed(1, 343, 162, 597),
     Rect::new_signed(163, 343, 324, 597),
+
+    Rect::new_signed(256, 172, 304, 208),
 ];
 
 const GLIDE_RIGHT   : Range<usize> = 0..12;
@@ -213,6 +215,9 @@ const STAIRS        : Range<usize> = 97..99;
 pub const STAIRS_UP     : usize = 0;
 pub const STAIRS_DOWN   : usize = 1;
 
+const SHREDDED      : Range<usize> = 99..100;
+pub const BITS      : usize = 0;
+
 pub struct Atlas<'a> {
     pixels: sdl2::render::Texture<'a>,
     blocks: std::collections::HashMap<&'static str, &'static [Rect]>
@@ -230,6 +235,7 @@ pub fn glider_sprites<'a>(pixels: sdl2::render::Texture<'a>) -> Atlas<'a> {
             ("glider.right", &ITEMS[GLIDE_RIGHT]),
             ("glider.left", &ITEMS[GLIDE_LEFT]),
             ("glider.turn", &ITEMS[GLIDE_TURN]),
+            ("glider.shreds", &ITEMS[SHREDDED]),
 
             ("blowers", &ITEMS[AIR]),
             ("collectible", &ITEMS[BONUS]),
