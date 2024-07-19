@@ -335,7 +335,14 @@ enum Progress {
             for action in actions {
                 match action {
                     Input::Go(direction) => *motion.x_mut() += *direction * MAX_THRUST,
-                    Input::Flip => {signal.get_or_insert_with(|| vec![Update::Turn(-self.facing)]);},
+                    Input::Flip => {
+                        let turn = State::Turning(-self.facing, 0..11);
+                        match &self.now {
+                            Some(doing) if *doing >= turn => (),
+                            _ => self.now = Some(turn)
+                        };
+                        signal.get_or_insert_with(|| vec![Update::Turn(-self.facing)]);
+                    },
                     _ => ()
                 };
             }
