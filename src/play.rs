@@ -198,7 +198,7 @@ impl Object {
                 Some(Event::Control(State::Sliding(self.position.y())))
             }
             Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
-            Kind::Macintosh | Kind::Drip{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} |
+            Kind::Macintosh | Kind::Drop{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} |
             Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..)
                 => {eprintln!("{:?}", self.kind); Some(Event::Control(DIE))},
             Kind::Flame | Kind::Outlet{..} => Some(Event::Control(IGNITE)),
@@ -419,7 +419,8 @@ enum Progress {
             .filter_map(|(id, o)| { 
                 if self.dark() {
                     match o.kind {
-                        Kind::Switch(None) | Kind::Balloon(..) | Kind::Dart(..) | Kind::Copter(..) | Kind::Outlet{progress: Range{start: ..=0, ..}, ..}
+                        Kind::Switch(None) | Kind::Balloon(..) | Kind::Dart(..) | Kind::Copter(..) | 
+                        Kind::Outlet{progress: Range{start: ..=0, ..}, ..} | Kind::Drop(Motion{limit: Range{start: 1.., ..}, ..})
                             => (),
                         _ => return None,
                     }
