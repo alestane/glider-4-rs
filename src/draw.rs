@@ -452,8 +452,8 @@ mod room {
             for _frame in play.debug_zones() {
                 // display.fill((0, 255, 0, 100), space::Rect::from(frame).into()).ok();
             }
-            display.sprite((player_position.0, player_position.1 + 10), BOTTOM, facing, frame);
             display.sprite((player_position.0, VERT_FLOOR as i16), TOP, facing, atlas::SHADOW);
+            display.sprite((player_position.0, player_position.1 + 10), BOTTOM, facing, frame);
             display.publish();
         }
     }
