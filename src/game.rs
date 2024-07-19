@@ -12,7 +12,7 @@ fn animate_with<F: FnOnce() -> Frame>(list: &Animations, id: usize, loader: F) {
 }
 
 fn recycle<I: Iterator<Item: Clone>>(iter: I, count: usize) -> impl Iterator<Item = I::Item> {
-    iter.map(move |i| repeat(i).take(count)).flatten()
+    iter.flat_map(move |i| repeat(i).take(count))
 }
 
 pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room), target: Entrance) -> Result<(u32, Option<(NonZero<u16>, Entrance)>), ()> {
@@ -32,7 +32,7 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room
     let animation = Animations::default();
     {
         let mut animation = animation.borrow_mut();
-        for (id, object) in play.visible_items() {
+        for (id, object) in play.enumerate() {
             let range = match object.kind {
                 object::Kind::Balloon(Range{end, ..}) => (end as usize, atlas::RISING.count()),
                 object::Kind::Copter(Range{end, ..}) => (end as usize, atlas::FALLING.count()),

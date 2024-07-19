@@ -484,6 +484,7 @@ impl<T> Illuminator for (&mut Canvas<Window>, T) {
     fn get_builder(&self) -> Self::Builder { self.0.get_builder() }
 }
 
+#[allow(private_bounds)]
 pub trait Scribe : Illuminator {
     fn clear(&mut self, color: sdl2::pixels::Color);
     fn publish(&mut self);
