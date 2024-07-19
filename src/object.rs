@@ -162,7 +162,7 @@ impl Object {
                 Size::new(range, 20)
             }
             Kind::Shredder { ready: true } => const{ Size::new(63, 24) },
-            Kind::Outlet{progress: Range{start: ..0, ..}} => const{ Size::new(32, 25) },
+            Kind::Outlet{progress: Range{start: ..=0, ..}} => const{ Size::new(32, 25) },
             Kind::Stair(v, ..) => { if v == Vertical::Up {*position.y_mut() -= 254}; const{ Size::new(97, 8)}},
             Kind::Wall(..) => const{ Size::new(14, 342) },
             Kind::Table{width} => Some(Size::from((width, const{ NonZero::new(9).unwrap() }))),
