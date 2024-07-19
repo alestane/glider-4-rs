@@ -72,11 +72,11 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room
             Outcome::Continue(updates) => {
                 for update in updates.into_iter().flatten() {
                     match update {
-                        Update::Turn(side) => animate_with(&animation, 0, || match side {Side::Left => Box::new((0..5).rev().map(|i| repeat(i).take(2)).flatten()), Side::Right => Box::new((0..5).map(|i| repeat(i).take(2)).flatten())}),
+                        Update::Turn(side) => animate_with(&animation, 0, || match side {Side::Right => Box::new(recycle((0..6).rev(), 2)), Side::Left => Box::new(recycle(0..6, 2))}),
                         Update::Fade(inout) => animate_with(&animation, 0, || if inout {Box::new(FADE_IN.iter().cloned())} else {Box::new(FADE_OUT.iter().cloned())}),
                         Update::Burn => animate_with(&animation, 0, || Box::new(atlas::BURN.cycle()) ),
                         Update::Start(Environment::Grease, Some(bottle)) => animate_with(&animation, bottle.get(), 
-                            || Box::new((atlas::TIPPING..=atlas::TIPPING).map(|i| repeat(i).take(2)).flatten())
+                            || Box::new(recycle(atlas::TIPPING..=atlas::TIPPING, 2))
                         ),
                         _ => ()
                     }

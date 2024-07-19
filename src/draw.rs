@@ -431,8 +431,9 @@ mod room {
             let (player_position, facing, backward) = play.player();
             let facing = match facing {Some(Side::Left) => "glider.left", Some(Side::Right) => "glider.right", _ => "glider.turn"};
             let frame = animations.check(0).unwrap_or(if backward {atlas::TIPPED} else {atlas::LEVEL});
+            if facing == "glider.turn" { eprintln!("{frame}") }
             let items = play.visible_items().filter(
-                |(_, o)| {
+                |&(_, o)| {
                     if let object::Kind::Mirror(size) = o.kind {
                         let size = size - (8, 8);
                         let bounds = space::Rect::from(size / CENTER << o.position);
