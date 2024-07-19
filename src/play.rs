@@ -197,6 +197,7 @@ impl Object {
                 *motion.y_mut() -= motion.y().saturating_add(test.bottom()) - self.position.y();
                 Some(Event::Control(State::Sliding(self.position.y())))
             }
+            Kind::Shredder{..} |
             Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
             Kind::Macintosh | Kind::Drop{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} |
             Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..)
@@ -209,6 +210,7 @@ impl Object {
             Kind::FloorVent { .. } | Kind::Candle { .. } => {if state.on.air {*v = -6}; None},
             Kind::Guitar => Some(Event::Display(Update::Start(Environment::Guitar, Some(id)))),
             Kind::Switch(None) => Some(Event::Action(Change::Light)),
+            Kind::Switch(Some(target)) => Some(Event::Action(Change::Toggle(target))),
             Kind::Stair(Vertical::Up, to) => Some(Event::Control(State::Ascending(to, state.player.y()))),
             Kind::Stair(Vertical::Down, to) => Some(Event::Control(State::Descending(to, state.player.y()))),
             Kind::Wall{..} => {
