@@ -188,6 +188,7 @@ impl super::object::Object {
         let previous = *motion;
         let (h, v) = motion.as_mut();
         match self.kind {
+            Kind::CeilingDuct { destination: None, ready: false, ..} => Some(Event::Action(Change::Transport)),
             Kind::Exit{to: destination, ..} |
             Kind::CeilingDuct { destination, ready: false, ..} => Some(Event::Control(State::Escaping(destination, 0..16))),
             Kind::CeilingDuct {..} | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
@@ -246,6 +247,7 @@ const BOUNDS: [Object; 3] = [
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Change {
+    Transport,
     Collect,
     Toggle(object::Id),
     Spill,
@@ -263,6 +265,7 @@ enum Progress {
     pub fn child_id(parent: &Object) -> NonZero<usize> { unsafe{ NonZero::new_unchecked(parent as *const _ as usize + 40) } }
     fn update(&mut self) -> Option<Progress> {
         let state = self.now.as_mut()?;
+        if let State::Turning(faces, ..) = state { self.facing = *faces }
         if let Some(motion) = state.next() {
             let (motion, relative) = motion;
             let motion = if relative { motion * self.facing } else { motion };
@@ -274,6 +277,10 @@ enum Progress {
     }
     fn apply(&mut self, source: object::Id, action: Change) -> Option<Update> {
         Some(match action {
+            Change::Transport => {
+                self.reset(Entrance::Air);
+                Update::Start(Environment::Duct, None)
+            }
             Change::Heat => {
                 self.on.air = true;
                 Update::Air

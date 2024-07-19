@@ -73,6 +73,7 @@ pub enum Environment {
     Toast,
     Grease,
     Switch,
+    Duct,
 }
 
 #[derive(Debug, Clone, Copy)]
