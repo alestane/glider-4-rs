@@ -421,7 +421,7 @@ enum Progress {
             .filter_map(|(id, o)| { 
                 if self.dark() {
                     match o.kind {
-                        Kind::Switch(None) | Kind::Balloon(..) | Kind::Dart(..) | Kind::Copter(..)
+                        Kind::Switch(None) | Kind::Balloon(..) | Kind::Dart(..) | Kind::Copter(..) | Kind::Outlet{progress: Range{start: ..=0, ..}, ..}
                             => (),
                         _ => return None,
                     }
