@@ -1,7 +1,7 @@
 use crate::{Environment, Position, Reference, Displacement, Size, Bounds, Update, Vertical, cart::{Rise, Span}};
 
 use super::{Input, Outcome, object::{self, Object, Kind, Motion}, room::{self, On, Room}, Side};
-use std::{collections::{BTreeMap, BTreeSet}, iter::from_fn, num::NonZero, ops::Range};
+use std::{iter::{from_fn, once}, num::NonZero, ops::{Index, IndexMut, Range}};
 
 const MAX_THRUST: i16 = 5;
 
@@ -130,11 +130,19 @@ impl std::cmp::Ord for State {
 
 const PLAYER_SIZE: Size = const{ Size::new(28, 10).unwrap() };
 
+mod iter {
+    use std::{iter::{FilterMap, self}, slice};
+    use super::{Object, object};
+    pub type Enumerate<'a> = FilterMap<iter::Enumerate<slice::Iter<'a, Option<Object>>>, fn((usize, &Option<Object>)) -> Option<(object::Id, &Object)>>;
+    pub type Iter<'a> = FilterMap<slice::Iter<'a, Option<Object>>, fn(&Option<Object>) -> Option<&Object>>;
+}
+use iter::{Enumerate, Iter};
+
 pub struct Play {
     walls: &'static [Object],
     exits: room::Exits,
     score: u32,
-    items: BTreeMap<NonZero<usize>, Object>,
+    objects: Vec<Option<Object>>,
     facing: Side,
     player: Reference,
     motion: Displacement,
@@ -149,20 +157,20 @@ impl Room {
         	eprintln!("{o:?}");
         }
         eprintln!("{:?}", self.environs);
-        let mut items = BTreeMap::from_iter(
-            self.objects.iter().enumerate().filter_map(|(index, object)| (!object.is_cosmetic()).then(|| (unsafe{ NonZero::new_unchecked(index + 1) }, object.clone()) ))
+        let mut objects = Vec::from_iter( 
+            once(None)
+            .chain(self.objects.iter().map(|object| (!object.is_cosmetic()).then(|| object.clone()) ))
         );
-        let mut spawns = BTreeMap::from_iter(items.iter().filter_map(|(_, host)| 
-            host.effect().map(|child| { eprintln!("{host:?}: {:X}", Play::child_id(host)); (Play::child_id(host), child) })));
-        items.append(&mut spawns);
-        items.extend(self.animate.as_ref().map(|(count, kind)| 
-            from_fn(move || kind.new()).take(count.get() as usize)
-        ).into_iter().flatten().collect::<Vec<_>>().iter().map(|anim| (Play::child_id(anim), anim.clone())));
+        self.objects.iter().filter_map(|host| host.effect().map(|spawn| Some(spawn))).collect_into(&mut objects);
+        self.animate.as_ref()
+        .map(|(count, kind)| from_fn(move || Some(kind.new())).take(count.get() as usize))
+        .into_iter().flatten().collect_into(&mut objects);
+                
         let mut this = Play {
             walls: &BOUNDS[self.walls()],
             exits: self.exits,
             score: 0,
-            items,
+            objects,
             facing: Side::Left,
             player: (24, 50).into(),
             motion: Displacement::default(),
@@ -245,9 +253,58 @@ enum Change {
     Heat,
 }
 
+enum Progress {
+    Auto(Displacement, bool),
+    Conclude(Outcome)
+}
+
  impl Play {
     #[inline]
     pub fn child_id(parent: &Object) -> NonZero<usize> { unsafe{ NonZero::new_unchecked(parent as *const _ as usize + 40) } }
+    fn update(&mut self) -> Option<Progress> {
+        let state = self.now.as_mut()?;
+        if let Some(motion) = state.next() {
+            let (motion, relative) = motion;
+            let motion = if relative { motion * self.facing } else { motion };
+            Some(Progress::Auto(motion, match state {State::Turning(..) |  State::Burning(..) => true, _ => false}))
+        } else {
+            self.now.take().and_then(|state| state.outcome(self.score))
+            .map(|outcome|Progress::Conclude(outcome))
+        }
+    }
+    fn apply(&mut self, source: object::Id, action: Change) -> Option<Update> {
+        Some(match action {
+            Change::Heat => {
+                self.on.air = true;
+                Update::Air
+            }
+            Change::Light => {
+                self.on.lights = true;
+                Update::Lights
+            }
+            Change::Spill => {
+                match &mut self.objects[source.get()] {
+                    Some(Object{kind: Kind::Grease{ready, ..}, ..}) if *ready == true => {*ready = false;}
+                    _ => return None
+                }
+                Update::Start(Environment::Grease, Some(source))
+            }
+            Change::Toggle(id) => {
+                match &mut self.objects[id.get()] {
+                    Some(Object{kind: Kind::Shredder { ready }, ..}) |
+                    Some(Object{kind: Kind::CeilingDuct { ready, .. }, ..}) |
+                    Some(Object{kind: Kind::Fan { ready, .. }, ..}) 
+                        => *ready = !*ready,
+                    _ => ()
+                };
+                Update::Start(Environment::Switch, None)
+            }
+            Change::Collect => {
+                return self.award(source)
+            }
+        })
+    }
+
     pub fn frame(&mut self, actions: &[Input]) -> Outcome {
         let mut signal = self.now.as_ref().map(|s| match s {
             State::FadingIn(..) => vec![Update::Fade(true)],
@@ -256,20 +313,11 @@ enum Change {
             State::Turning(..) => vec![Update::Turn(self.facing)],
             _ => vec![],
         });
-        let control = if let Some(state) = self.now.as_mut() {
-            if let Some(motion) = state.next() {
-            	let (motion, relative) = motion;
-            	let motion = if relative { motion * self.facing } else { motion };
-                Some((motion, match state {State::Turning(..) |  State::Burning(..) => true, _ => false}))
-            } else {
-				let result = state.outcome(self.score);
-				self.now = None;
-                if let Some(outcome) = result {
-                    return outcome
-                }
-                None
-            }
-        } else { None };
+        let control = match self.update() {
+            Some(Progress::Conclude(outcome)) => return outcome,
+            Some(Progress::Auto(motion, collision)) => Some((motion, collision)),
+            _ => None
+        };
 
         if let (Some((motion, _)), Some(State::Ascending(..))) = (control, &self.now) {
             eprintln!("Asc: {motion:?}");
@@ -286,56 +334,24 @@ enum Change {
             }
             (motion, true)
         });
+        for animated in &mut self.objects {
+            let Some(animated) = animated else {continue};
+            animated.advance()
+        }
         let events = if collision {
             if let Ok(touch) = Bounds::try_from(PLAYER_SIZE / (Span::Center, Rise::Center) << self.player) {
-                for (id, animated) in self.items.iter_mut().filter(|(_, entity)| entity.is_animated()) {
-                    animated.advance();
-                }
                 let objects = 
-                    self.items.iter().map(|(&index, o)| (index, o))
-                        .chain(self.walls.iter().map(|wall| (NonZero::<usize>::MAX, wall)));
+                    self.objects.iter().enumerate().filter_map(|(i, o)| Some((object::Id::try_from(i).ok()?, o.as_ref()?)) )
+                        .chain(self.walls.iter().map(|wall| (const{object::Id(NonZero::new(usize::MAX).unwrap())}, wall)));
                 let incidents = objects
-                    .filter_map(|(i, o)| (o.active_area() & touch).and_then(|_| Some((i, o.action(touch, &mut motion, i.into(), self)?))))
+                    .filter_map(|(i, o)| (o.active_area() & touch).and_then(|_| Some((i, o.action(touch, &mut motion, i, self)?))))
                     .collect::<Vec<_>>();
 
                 let (events, outcomes) = incidents.into_iter().map(|(id, event)| 
                     match event {
                         Event::Display(update) => (Some(update), None),
                         Event::Control(state) => (None, Some(state)),
-                        Event::Action(action) => (Some(match action {
-                            Change::Heat => {
-                                self.on.air = true;
-                                Update::Air
-                            }
-                            Change::Light => {
-                                self.on.lights = true;
-                                Update::Lights
-                            }
-                            Change::Spill => {
-                                match self.get_mut(id) {
-                                    Some(Object{kind: Kind::Grease{ready, ..}, ..}) if *ready == true => {*ready = false;}
-                                    _ => return (None, None)
-                                }
-                                Update::Start(Environment::Grease, Some(object::Id::from(id)))
-                            }
-                            Change::Toggle(id) => {
-                                match self.get_child_mut(id) {
-                                    Some(Object{kind: Kind::Shredder { ready }, ..}) |
-                                    Some(Object{kind: Kind::CeilingDuct { ready, .. }, ..}) |
-                                    Some(Object{kind: Kind::Fan { ready, .. }, ..}) 
-                                        => *ready = !*ready,
-                                    _ => ()
-                                };
-                                Update::Start(Environment::Switch, None)
-                            }
-                            Change::Collect => {
-                                if let Some(event) = self.award(id.into()) {
-                                    event
-                                } else {
-                                    return (None, None)
-                                }
-                            }
-                        }), None)
+                        Event::Action(action) => (self.apply(id, action), None)
                     }
                 )
                 .unzip::<_, _, Vec<_>, Vec<_>>();
@@ -356,7 +372,7 @@ enum Change {
     }
 
     fn award(&mut self, id: object::Id) -> Option<Update> {
-        let ping = match self.get(*id)?.kind {
+        let ping = match self[id].kind {
             Kind::Battery(value) => {
                 Update::Energy(value, id)
             }
@@ -373,16 +389,23 @@ enum Change {
             }
             _ => return None
         };
-        self.items.remove(&id);
+        self.objects.remove(id.get());
         Some(ping)
     }
 
     pub fn dark(&self) -> bool { !self.on.lights }
     pub fn cold(&self) -> bool { !self.on.air }
 
+    fn enumerate(&self) -> Enumerate<'_> {
+        fn recode((index, option): (usize, &Option<Object>)) -> Option<(object::Id, &Object)> {
+            Some((object::Id::try_from(index).ok()?, option.as_ref()?))
+        }
+        self.objects.iter().enumerate().filter_map(recode)
+    }
+
     pub fn visible_items(&self) -> impl Iterator<Item = (crate::prelude::object::Id, &Object)> {
-        self.items.iter()
-            .filter_map(|(&id, o)| { 
+        self.enumerate()
+            .filter_map(|(id, o)| { 
                 if self.dark() {
                     match o.kind {
                         Kind::Switch(None) | Kind::Balloon(..) | Kind::Dart(..) | Kind::Copter(..)
@@ -390,7 +413,7 @@ enum Change {
                         _ => return None,
                     }
                 };
-                Some((id, o))
+                Some((id.0, o))
             })
     } 
 
@@ -400,8 +423,8 @@ enum Change {
 
     fn entrance(&self, from: Entrance) -> i16 {
         fn is_active_duct(o: &&Object) -> bool { matches!(o.kind, object::Kind::CeilingDuct { .. }) }
-        fn is_down_stair(o: &&Object) -> bool { matches!(o.kind, object::Kind::Stair(Vertical::Down, _)) }
-        self.items.values()
+        fn is_down_stair(o: &&Object) -> bool { matches!(o.kind, object::Kind::Stair(Vertical::Down, _))}
+        self.into_iter()
         .filter(
             match from {
                 Entrance::Air => is_active_duct,
@@ -434,22 +457,27 @@ enum Change {
     }
 
     pub fn debug_zones<'this>(&'this self) -> impl Iterator<Item=Bounds> + 'this {
-        self.items.values().filter_map(|o| o.active_area())
+        self.objects.iter().filter_map(|o| o.as_ref()?.active_area())
     }
+}
 
-    fn get(&self, index: NonZero<usize>) -> Option<&Object> {
-        self.items.get(&index)
+impl Index<object::Id> for Play {
+    type Output = Object;
+    fn index(&self, index: object::Id) -> &Self::Output {
+        self.objects[index.get()].as_ref().expect("Accessed absent object::Id in Play.")
     }
+}
 
-    fn get_mut(&mut self, index: NonZero<usize>) -> Option<&mut Object> {
-        self.items.get_mut(&index)
+impl IndexMut<object::Id> for Play {
+    fn index_mut(&mut self, index: object::Id) -> &mut Self::Output {
+        self.objects[index.get()].as_mut().expect("Accessed absent object::Id in Play.")
     }
+}
 
-    fn get_child(&self, object::Id(index): object::Id) -> Option<&Object> {
-        self.get(Self::child_id(self.get(index)?))
-    }
-
-    fn get_child_mut(&mut self, object::Id(index): object::Id) -> Option<&mut Object> {
-        self.get_mut(Self::child_id(self.get(index)?))
+impl<'a> IntoIterator for &'a Play {
+    type IntoIter = Iter<'a>;
+    type Item = &'a Object;
+    fn into_iter(self) -> Self::IntoIter {
+        self.objects.iter().filter_map(Option::as_ref)
     }
 }
