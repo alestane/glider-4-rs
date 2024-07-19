@@ -235,6 +235,7 @@ pub fn glider_sprites<'a>(pixels: sdl2::render::Texture<'a>) -> Atlas<'a> {
             ("collectible", &ITEMS[BONUS]),
             ("visual", &ITEMS[DECOR]),
             ("power", &ITEMS[POWER]),
+            ("shock", &ITEMS[POWER][SPARK]),
             ("grease", &ITEMS[GREASE]),
             ("band", &ITEMS[RUBBER]),
 
