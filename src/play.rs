@@ -372,7 +372,7 @@ enum Progress {
     }
 
     fn award(&mut self, id: object::Id) -> Option<Update> {
-        let ping = match self[id].kind {
+        let ping = match self.objects[id.get()].take()?.kind {
             Kind::Battery(value) => {
                 Update::Energy(value, id)
             }
@@ -389,14 +389,13 @@ enum Progress {
             }
             _ => return None
         };
-        self.objects.remove(id.get());
         Some(ping)
     }
 
     pub fn dark(&self) -> bool { !self.on.lights }
     pub fn cold(&self) -> bool { !self.on.air }
 
-    fn enumerate(&self) -> Enumerate<'_> {
+    pub fn enumerate(&self) -> Enumerate<'_> {
         fn recode((index, option): (usize, &Option<Object>)) -> Option<(object::Id, &Object)> {
             Some((object::Id::try_from(index).ok()?, option.as_ref()?))
         }
