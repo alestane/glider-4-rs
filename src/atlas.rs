@@ -179,7 +179,7 @@ pub const TOAST     : Range<usize> = 1..7;
 
 const GOLDFISH      : Range<usize> = 62..67;
 pub const FISHBOWL  : usize = 0;
-pub const FISH      : Range<usize> = 1..6;
+pub const FISH      : Range<usize> = 1..5;
 
 const CANDLE_FLAME  : Range<usize> = 67..70;
 pub const FLAME     : Range<usize> = 0..3;
