@@ -34,7 +34,7 @@ enum State {
     FadingIn(Range<u8>),
     FadingOut(Range<u8>),
     Turning(Side, Range<u8>),
-//    Shredding(Rect),
+    Shredding{height: u16, x: i16, top: i16},
     Burning(Range<u16>),
     Ascending(room::Id, i16),
    Descending(room::Id, i16),
@@ -46,7 +46,7 @@ impl State {
     fn outcome(&self, score: u32) -> Option<Outcome> {
         Some(match self {
 			Self::Escaping(to, time) if time.start >= time.end => Outcome::Leave { score, destination: to.map(|room::Id(id)| (id, Entrance::Air))},
-            Self::FadingOut(_) | Self::Burning(_) /* | Self::Shredding(_) */ => Outcome::Dead,
+            Self::FadingOut(_) | Self::Burning(_) | Self::Shredding{..} => Outcome::Dead,
             Self::Ascending(room::Id(room), _) /*| Self::Descending(RoomId(room), _)*/
                  => Outcome::Leave{score, destination: Some((*room, Entrance::Down))},
             Self::Descending(room::Id(room), _)
@@ -67,10 +67,13 @@ impl std::iter::Iterator for State {
             Self::Turning(_, phase)  
                 => phase.next().map(|_| (Displacement::default(), false)),
             Self::Burning(phase) => {if phase.next().is_none() {eprintln!("burn timeout"); *self = DIE}; Some(((1, 3).into(), true)) },
-            /* Self::Shredding(bounds) => match bounds.height().get() {
-                0..36 => {bounds._bottom += 1; Some((0, (bounds.height().get() % 2) as i16))},
-                _ => {bounds._top += 8; bounds._bottom += 8; (bounds._top > 342).then_some((0, 8))}
-            }, */
+            Self::Shredding{height, top, ..} => {
+                if *top > 342 {return None}
+                Some(((0, match height {
+                    ..36 => {*height += 1; 0}
+                    _ => {*top += 8; 8}
+                }).into(), false))
+            },
             Self::Ascending(_, v) => {*v -= 6; (*v >= 230).then_some(((-2, -6).into(), false))}
             Self::Descending(_, v) => {*v += 6; (*v <= 130).then_some(((2, 6).into(), false))},
         }
@@ -86,14 +89,14 @@ enum Event {
 impl From<&State> for u8 {
     fn from(value: &State) -> Self {
         match value {
-        	State::Escaping(None, _) => 0,
-        	State::Escaping(..) => 1,
+            State::Shredding{..} => 0,
+        	State::Escaping(None, _) => 1,
+        	State::Escaping(..) => 2,
             State::Sliding(..) => 15u8, 
             State::Ascending(..) | State::Descending(..) 
                 => 16u8,
             State::FadingIn(phase) => 32u8 + phase.start,
             State::FadingOut(phase) => 48u8 + phase.start,
-            //    State::Shredding(_) => 64u8,
             State::Burning(_) => 80u8,
             State::Turning(_, phase) => 96u8 + phase.start,
         }
@@ -197,7 +200,8 @@ impl Object {
                 *motion.y_mut() -= motion.y().saturating_add(test.bottom()) - self.position.y();
                 Some(Event::Control(State::Sliding(self.position.y())))
             }
-            Kind::Shredder{..} |
+            Kind::Shredder{..}
+                => Some(Event::Control(State::Shredding{height: 0, x: self.position.x() + 3, top: self.position.y() + 2})),
             Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
             Kind::Macintosh | Kind::Drop{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} |
             Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..)
@@ -258,6 +262,12 @@ enum Change {
 enum Progress {
     Auto(Displacement, bool),
     Conclude(Outcome)
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Player {
+    Flying{facing: Option<Side>, backward: bool},
+    Shredding{height: u16}
 }
 
  impl Play {
@@ -431,8 +441,13 @@ enum Progress {
             })
     } 
 
-    pub fn player(&self) -> ((i16, i16), Option<Side>, bool) {
-        (self.player.into(), match self.now{Some(State::Turning(..)) => None, _ => Some(self.facing)}, self.facing * self.motion.x() < 0)
+    pub fn player(&self) -> ((i16, i16), Player) {
+        let backward = self.facing * self.motion.x() < 0;
+        match self.now{
+            Some(State::Shredding{height, x, top}) =>((x, top), Player::Shredding { height }),
+            Some(State::Turning(..)) => ((self.player.into()), Player::Flying{facing: None, backward}),
+            _ => ((self.player.into()), Player::Flying{facing: Some(self.facing), backward}),
+        }
     }
 
     fn entrance(&self, from: Entrance) -> i16 {

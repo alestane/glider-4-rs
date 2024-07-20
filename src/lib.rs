@@ -20,7 +20,7 @@ mod prelude {
     use std::num::NonZero; 
 
     pub use super::{
-        Input, Outcome, Success, Side, Vertical, Environment, Update, 
+        Input, Outcome, Success, Side, Vertical, Environment, Update, play::Player, 
         Bounds, Position, Size, cart::{Span, Rise, Rect, Point},
         Object, Room, House, 
     };

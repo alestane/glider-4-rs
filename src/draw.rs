@@ -37,7 +37,6 @@ pub trait Visible {
 
 trait Animator {
     fn check(&self, id: usize) -> Option<usize>;
-    fn check_or_else(&self, id: usize, f: impl FnOnce(usize) -> Option<Frame>) -> usize;
 }
 
 impl Animator for Animations {
@@ -47,16 +46,6 @@ impl Animator for Animations {
         if index.is_none() { list.remove(&id); }
         index
      }
-     fn check_or_else(&self, id: usize, f: impl FnOnce(usize) -> Option<Frame>) -> usize {
-        let mut list = self.borrow_mut();
-        if let Some(seq) = list.get_mut(&id) {
-            Some(seq)
-        } else {
-            let Some(f) = f(id) else { return 0 };
-            list.try_insert(id, f).ok()
-        }.and_then(|i| i.next())
-        .unwrap()
-    }
 }
 
 mod object {
@@ -132,7 +121,7 @@ mod object {
                 Is::Switch(None) => ("power", atlas::SWITCH, CENTER),
                 Is::Outlet{progress: Range{start: phase@..=0, ..}} => ("shock", phase.rem_euclid(2) as usize, CENTER),
                 Is::Outlet{..} => ("power", atlas::OUTLET, CENTER),
-                Is::Shredder{..} => ("visual", atlas::SHREDDER, TOP),
+                Is::Shredder{..} => ("visual", atlas::SHREDDER, CENTER),
                 Is::Drip {..} => ("water", atlas::STILL_DRIP, TOP),
                 Is::Drop(Motion{limit: Range{start, ..}, ..}) => ("water", 4usize.saturating_add_signed(start as isize / 2).min(4), TOP),
                 Is::Macintosh => ("visual", atlas::COMPUTER, BOTTOM),
@@ -431,18 +420,25 @@ mod room {
     impl Visible for (&glider::Play, &Animations) {
         fn show<Display: Scribe>(&self, display: &mut Display) {
             let &(play, animations) = self;
-            let (player_position, facing, backward) = play.player();
-            let facing = match facing {Some(Side::Left) => "glider.left", Some(Side::Right) => "glider.right", _ => "glider.turn"};
-            let frame = animations.check(0).unwrap_or(if backward {atlas::TIPPED} else {atlas::LEVEL});
-            if facing == "glider.turn" { eprintln!("{frame}") }
-            display.sprite((player_position.0, VERT_FLOOR as i16), TOP, facing, atlas::SHADOW);
+            let (player_position, mode) = play.player();
+            let (block, frame, clip) = match mode {
+                Player::Flying { facing, backward } => (
+                    match facing {Some(Side::Left) => "glider.left", Some(Side::Right) => "glider.right", _ => "glider.turn"}, 
+                    animations.check(0).unwrap_or(if backward {atlas::TIPPED} else {atlas::LEVEL}),
+                    None,
+                ),
+                Player::Shredding{ height } => ("glider.shreds", atlas::BITS, Some(height)),
+            };
+            if block == "glider.left" || block == "glider.right" {
+                display.sprite((player_position.0, VERT_FLOOR as i16), TOP, block, atlas::SHADOW);
+            }
             let items = play.visible_items().filter(
                 |&(_, o)| {
                     if let object::Kind::Mirror(size) = o.kind {
                         let size = size - (8, 8);
                         let bounds = space::Rect::from(size / CENTER << o.position);
                         display.clipping(bounds, |display|
-                            display.sprite((player_position.0 - 16, player_position.1 - 32), CENTER, facing, frame)
+                            display.sprite((player_position.0 - 16, player_position.1 - 32), CENTER, block, frame)
                         );
                         return false;
                     };
@@ -457,7 +453,17 @@ mod room {
             for _frame in play.debug_zones() {
                 // display.fill((0, 255, 0, 100), space::Rect::from(frame).into()).ok();
             }
-            display.sprite((player_position.0, player_position.1 + 10), BOTTOM, facing, frame);
+            match clip {
+                Some(height) => {
+                    if height > 0 {
+                        display.clipping(
+                            Rect::new(player_position.0 as i32 - 24, player_position.1 as i32, 48, height as u32),
+                            |display| display.sprite((player_position.0, player_position.1 + height as i16), BOTTOM, block, frame)
+                        )
+                    }
+                },
+                None => display.sprite((player_position.0, player_position.1 + 10), BOTTOM, block, frame),
+            }
             display.publish();
         }
     }
