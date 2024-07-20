@@ -180,6 +180,11 @@ impl Object {
                 kind: Kind::Drop(Motion::new(-7, (range as i16) << 5 + 1, 12)),
                 position: self.position,
             },
+            Kind::Fishbowl { range, delay } => Object {
+                kind: Kind::Fish({let mut jump = Motion::new(-((range as i16) << 5), delay as i16, 12); jump.reset(); jump}),
+                position: self.active_area()? * (Span::Center, Rise::Top),
+
+            },
             _ => return None
         })
     }
@@ -196,7 +201,6 @@ impl Object {
             Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(faces, 0..11))) }
             Kind::Grease {ready: true, ..} => Some(Event::Action(Change::Spill)),
             Kind::Grease {ready: false, ..} => {
-                eprintln!("Spill: {test:?}"); 
                 *motion.y_mut() -= motion.y().saturating_add(test.bottom()) - self.position.y();
                 Some(Event::Control(State::Sliding(self.position.y())))
             }
