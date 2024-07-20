@@ -2,7 +2,7 @@ use std::{fmt::Display, num::NonZero, time::{Duration, SystemTime}};
 
 use super::{*,
     room::{Exits, Room}, 
-    object::Object, 
+    object::{self, Object}, 
     house::House,
     cart::{Rise, Span},
 };
@@ -292,7 +292,7 @@ impl object::Kind {
             Is::CeilingVent{..} | Is::CeilingDuct{..} | Is::Fan{..} | Is::Candle{..} |
             Is::RubberBands(..) | Is::Clock(..) | Is::Paper(..) | Is::Battery(..) |
             Is::Guitar |
-            Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | Is::Bounce{..} |
+            Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | 
             Is::Books | Is::Basket | Is::Macintosh | Is::Wall(..) 
                 => (Span::Center, Rise::Bottom),
             _ => (Span::Center, Rise::Center)
@@ -365,7 +365,7 @@ impl TryFrom<binary::Object> for Object {
 
             32 => Kind::Drip{range: amount - bounds.top() as u16},
             33 => Kind::Toaster{range: bounds.top() as u16 - amount, delay: extra},
-            34 => Kind::Bounce{range: bounds.bottom() as u16 - amount},
+            34 => Kind::Ball({let mut range = object::Motion::new(-(bounds.bottom().saturating_sub_unsigned(amount) << 5), 0, 12); range.reset(); range}),
             35 => Kind::Fishbowl{range: bounds.y() as u16 - amount, delay: extra},
             36 => Kind::Teakettle{delay: amount},
             37 => Kind::Window(bounds.size(), ready),
