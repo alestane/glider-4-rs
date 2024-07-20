@@ -7,16 +7,20 @@ pub mod color {
     const ROOM_202: &[u8] = include_bytes!("color/202.png");
     const ROOM_204: &[u8] = include_bytes!("color/204.png");
     const ROOM_206: &[u8] = include_bytes!("color/206.png");
+    const ROOM_207: &[u8] = include_bytes!("color/207.png");
 
     pub fn assets() -> HashMap<usize, &'static [u8]> {
-        let mut values = HashMap::<usize, &'static [u8]>::new();
-        values.insert(128, SPRITES);
-        values.insert(200, ROOM_200);
-        values.insert(201, ROOM_201);
-        values.insert(202, ROOM_202);
-        values.insert(204, ROOM_204);
-        values.insert(206, ROOM_206);
-        values
+        HashMap::from_iter(
+            [
+                (128, SPRITES),
+                (200, ROOM_200),
+                (201, ROOM_201),
+                (202, ROOM_202),
+                (204, ROOM_204),
+                (206, ROOM_206),
+                (207, ROOM_207),
+            ]
+        )
     }
 }
 
