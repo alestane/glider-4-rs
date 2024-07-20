@@ -219,6 +219,7 @@ impl Object {
             Kind::Guitar => Some(Event::Display(Update::Start(Environment::Guitar, Some(id)))),
             Kind::Switch(None) => Some(Event::Action(Change::Light)),
             Kind::Switch(Some(target)) => Some(Event::Action(Change::Toggle(target))),
+            Kind::Thermostat => Some(Event::Action(Change::Heat)),
             Kind::Stair(Vertical::Up, to) => Some(Event::Control(State::Ascending(to, state.player.y()))),
             Kind::Stair(Vertical::Down, to) => Some(Event::Control(State::Descending(to, state.player.y()))),
             Kind::Wall{..} => {
