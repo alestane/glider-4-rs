@@ -62,7 +62,7 @@ impl Iterator for object::Kind {
                 }
             }
             Is::Ball(motion) | Is::Toast(motion) | Is::Fish(motion) => {
-                (0, motion.next()?)
+                (0, if let Some(v) = motion.next() {v} else {motion.velocity = -motion.velocity; 0})
             }
             Is::Balloon(delay) => delay.next().is_none().then_some( (0, -3) )?, 
             Is::Copter(delay) =>  delay.next().is_none().then_some( (-4, 2) )?,
