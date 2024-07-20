@@ -78,7 +78,6 @@ pub enum Kind {
     Drop(Motion),
     Toaster{range: u16, delay: u16},
     Toast(Motion),
-    Bounce{range: u16},
     Ball(Motion),
     Fishbowl{range: u16, delay: u16},
     Fish(Motion),
@@ -122,7 +121,7 @@ impl Kind {
             Is::FloorVent{..} | Is::Candle{..} |
             Is::RubberBands(..) | Is::Clock(..) | Is::Paper(..) | Is::Battery(..) |
             Is::Guitar |
-            Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} | Is::Bounce{..} |
+            Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} |
             Is::Books | Is::Basket | Is::Macintosh | 
             Is::CeilingDuct {ready: true, ..}
                 => (Span::Center, Rise::Bottom),
@@ -206,7 +205,7 @@ impl Object {
                 *position.y_mut() -= 56;
                 const{ Size::new(2, 90) }
             }
-            Kind::Window(..) | Kind::Painting | Kind::Mirror(..) | Kind::Bounce{..} | Kind::Teakettle{..} => None,
+            Kind::Window(..) | Kind::Painting | Kind::Mirror(..) | Kind::Teakettle{..} => None,
             _ => None
         }?;
         Some(size / anchor << position)
