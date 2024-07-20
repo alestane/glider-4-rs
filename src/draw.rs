@@ -119,6 +119,7 @@ mod object {
                 Is::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT, BOTTOM),
                 Is::Switch(Some(..)) => ("power", atlas::TOGGLE, CENTER),
                 Is::Switch(None) => ("power", atlas::SWITCH, CENTER),
+                Is::Thermostat => ("power", atlas::THERMO, CENTER),
                 Is::Outlet{progress: Range{start: phase@..=0, ..}} => ("shock", phase.rem_euclid(2) as usize, CENTER),
                 Is::Outlet{..} => ("power", atlas::OUTLET, CENTER),
                 Is::Shredder{..} => ("visual", atlas::SHREDDER, CENTER),
