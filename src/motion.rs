@@ -29,8 +29,8 @@ impl Iterator for Motion {
     type Item = i16;
     fn next(&mut self) -> Option<Self::Item> {
         if self.limit.start > 0 { 
-            if self.limit.next().is_none() { self.limit.start = 0; }
-            return None
+            if self.limit.next().is_none() { self.limit.start = 0; return None }
+            return Some(0);
         }
         let position = self.limit.start >> 5;
         self.velocity += self.acceleration;
