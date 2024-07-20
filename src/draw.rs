@@ -130,6 +130,7 @@ mod object {
                 Is::Painting => ("visual", atlas::PAINTING, CENTER),
                 Is::Guitar => ("visual", atlas::GUITAR, BOTTOM),
                 Is::Flame => ("fire", 0, CENTER),
+                Is::Ball(..) => ("ball", atlas::BALL, CENTER),
                 Is::Balloon(..) => ("balloon", atlas::POPPED, CENTER),
                 Is::Copter(..) => ("copter", atlas::CRUMPLED, CENTER),
                 Is::Dart(..) => ("dart", atlas::CRUSHED, CENTER),
