@@ -182,7 +182,7 @@ impl Object {
             },
             Kind::Fishbowl { range, delay } => Object {
                 kind: Kind::Fish({let mut jump = Motion::new(-((range as i16) << 5), delay as i16, 12); jump.reset(); jump}),
-                position: self.active_area()? * (Span::Center, Rise::Top),
+                position: self.active_area()? * (Span::Center, Rise::Top) - (0, 2),
 
             },
             _ => return None
@@ -207,7 +207,7 @@ impl Object {
             Kind::Shredder{..}
                 => Some(Event::Control(State::Shredding{height: 0, x: self.position.x() + 3, top: self.position.y() + 2})),
             Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
-            Kind::Macintosh | Kind::Drop{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} |
+            Kind::Macintosh | Kind::Drop{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} | Kind::Fish{..} |
             Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..)
                 => {eprintln!("{:?}", self.kind); Some(Event::Control(DIE))},
             Kind::Flame | Kind::Outlet{..} => Some(Event::Control(IGNITE)),
