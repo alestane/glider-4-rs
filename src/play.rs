@@ -36,8 +36,9 @@ enum State {
     Turning(Side, Range<u8>),
     Shredding{height: u16, x: i16, top: i16},
     Burning(Range<u16>),
-    Ascending(room::Id, i16),
-   Descending(room::Id, i16),
+    Stairs(Vertical, room::Id),
+    Ascending(i16),
+    Descending(i16),
 }
 
 const DIE: State = State::FadingOut(0..16);
@@ -46,11 +47,9 @@ impl State {
     fn outcome(&self, score: u32) -> Option<Outcome> {
         Some(match self {
 			Self::Escaping(to, time) if time.start >= time.end => Outcome::Leave { score, destination: to.map(|room::Id(id)| (id, Entrance::Air))},
+            Self::Stairs(Vertical::Up, destination) => Outcome::Leave{score, destination: Some((destination.0, Entrance::Down)) },
+            Self::Stairs(Vertical::Down, destination) => Outcome::Leave{score, destination: Some((destination.0, Entrance::Up))},
             Self::FadingOut(_) | Self::Burning(_) | Self::Shredding{..} => Outcome::Dead,
-            Self::Ascending(room::Id(room), _) /*| Self::Descending(RoomId(room), _)*/
-                 => Outcome::Leave{score, destination: Some((*room, Entrance::Down))},
-            Self::Descending(room::Id(room), _)
-                => Outcome::Leave{score, destination: Some((*room, Entrance::Up))},
             _ => return None
         })
     }
@@ -74,11 +73,13 @@ impl std::iter::Iterator for State {
                     _ => {*top += 8; 8}
                 }).into(), false))
             },
-            Self::Ascending(_, v) => {*v -= 6; (*v >= 230).then_some(((-2, -6).into(), false))}
-            Self::Descending(_, v) => {*v += 6; (*v <= 130).then_some(((2, 6).into(), false))},
+            Self::Stairs(..) => None,
+            Self::Ascending(v) => {*v -= 6; (*v >= 230).then_some(((-2, -6).into(), false))}
+            Self::Descending(v) => {*v += 6; (*v <= 130).then_some(((2, 6).into(), false))},
         }
     }
 }
+
 #[derive(Debug, Clone)]
 enum Event {
     Control(State),
@@ -91,7 +92,7 @@ impl From<&State> for u8 {
         match value {
             State::Shredding{..} => 0,
         	State::Escaping(None, _) => 1,
-        	State::Escaping(..) => 2,
+        	State::Escaping(..) | State::Stairs(..) => 2,
             State::Sliding(..) => 15u8, 
             State::Ascending(..) | State::Descending(..) 
                 => 16u8,
@@ -195,9 +196,9 @@ impl Object {
         let (h, v) = motion.as_mut();
         match self.kind {
             Kind::CeilingDuct { destination: None, ready: false, ..} => Some(Event::Action(Change::Transport)),
-            Kind::Exit{to: destination, ..} |
-            Kind::CeilingDuct { destination, ready: false, ..} => Some(Event::Control(State::Escaping(destination, 0..16))),
-            Kind::CeilingDuct {..} | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
+            Kind::Exit{to: Some(room), ..} |
+            Kind::CeilingDuct { destination: Some(room), ready: false, ..} => Some(Event::Control(State::Escaping(Some(room), 0..16))),
+            Kind::CeilingDuct {ready: true, ..} | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
             Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(faces, 0..11))) }
             Kind::Grease {ready: true, ..} => Some(Event::Action(Change::Spill)),
             Kind::Grease {ready: false, ..} => {
@@ -220,8 +221,7 @@ impl Object {
             Kind::Switch(None) => Some(Event::Action(Change::Light)),
             Kind::Switch(Some(target)) => Some(Event::Action(Change::Toggle(target))),
             Kind::Thermostat => Some(Event::Action(Change::Heat)),
-            Kind::Stair(Vertical::Up, to) => Some(Event::Control(State::Ascending(to, state.player.y()))),
-            Kind::Stair(Vertical::Down, to) => Some(Event::Control(State::Descending(to, state.player.y()))),
+            Kind::Stair(flight, to) => Some(Event::Control(State::Stairs(flight, to))),
             Kind::Wall{..} => {
                 test >>= previous;
                 if let Some(bounds) = self.active_area() {
@@ -380,7 +380,7 @@ pub enum Player {
                     match event {
                         Event::Display(update) => (Some(update), None),
                         Event::Control(state) => (None, Some(state)),
-                        Event::Action(action) => (self.apply(id, action), None)
+                        Event::Action(action) => (self.apply(id, action), None),
                     }
                 )
                 .unzip::<_, _, Vec<_>, Vec<_>>();
@@ -458,11 +458,13 @@ pub enum Player {
     fn entrance(&self, from: Entrance) -> i16 {
         fn is_active_duct(o: &&Object) -> bool { matches!(o.kind, object::Kind::CeilingDuct { .. }) }
         fn is_down_stair(o: &&Object) -> bool { matches!(o.kind, object::Kind::Stair(Vertical::Down, _))}
+        fn is_up_stair(o: &&Object) -> bool { matches!(o.kind, object::Kind::Stair(Vertical::Up, _))}
         self.into_iter()
         .filter(
             match from {
                 Entrance::Air => is_active_duct,
                 Entrance::Down => is_down_stair,
+                Entrance::Up => is_up_stair,
                 _ => return 232
             }
         )
@@ -474,8 +476,8 @@ pub enum Player {
         	Entrance::Air => ((self.entrance(from), room::VERT_CEILING as i16 + 10), Side::Right),
             Entrance::Spawn(side) => ((match side { Side::Left => 24, Side::Right => 488}, 50), -side),
             Entrance::Flying(side, height) => ((match side { Side::Left => 24, Side::Right => 488}, height as i16), -side),
-            Entrance::Down => ((self.entrance(from) + 88, room::VERT_FLOOR as i16 - 10), Side::Left),
-            Entrance::Up => ((self.entrance(from) + 88, room::VERT_CEILING as i16 + 10), Side::Left)
+            Entrance::Down => ((self.entrance(from) + 8, room::VERT_FLOOR as i16 - 10), Side::Right),
+            Entrance::Up => ((self.entrance(from) + 8, room::VERT_CEILING as i16 + 10), Side::Right)
         }
     }
     pub fn reset(&mut self, at: Entrance) {
@@ -485,8 +487,11 @@ pub enum Player {
         }
         self.player = Reference::new(x, y);
         self.motion = Displacement::default();
-        if let Entrance::Spawn(..) = at {
-        	self.now = Some(State::FadingIn(0..16));
+        self.now = match at {
+            Entrance::Spawn(..) => Some(State::FadingIn(0..16)),
+            Entrance::Up => Some(State::Ascending(y)),
+            Entrance::Down => Some(State::Descending(y)),
+            _ => None,
         }
     }
 
