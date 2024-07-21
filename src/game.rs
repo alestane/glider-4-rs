@@ -17,6 +17,7 @@ fn recycle<I: Iterator<Item: Clone>>(iter: I, count: usize) -> impl Iterator<Ite
 
 pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room), target: Entrance) -> Result<(u32, Option<(NonZero<u16>, Entrance)>), ()> {
     let display = &mut context.display;
+    display.set_blend_mode(sdl2::render::BlendMode::Blend);
     let loader = display.texture_creator();
 
     let mut backdrop = loader.create_texture_target(None, SCREEN_WIDTH, SCREEN_HEIGHT).expect("Failed to create backdrop texture");
