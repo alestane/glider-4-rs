@@ -145,9 +145,24 @@ impl Neg for &Side {
     fn neg(self) -> Self::Output { -*self }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Vertical {
     Down, Up,
+}
+
+impl Neg for Vertical {
+    type Output = Self;
+    fn neg(self) -> Self::Output {
+        match self {
+            Self::Up => Self::Down,
+            Self::Down => Self::Up,
+        }
+    }
+}
+
+impl Neg for &Vertical {
+    type Output = Vertical;
+    fn neg(self) -> Self::Output { -*self }
 }
 
 pub use room::Room;
