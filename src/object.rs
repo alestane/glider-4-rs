@@ -101,7 +101,7 @@ impl Kind {
             Is::Steam{..} 
                 => (Span::Right, Rise::Bottom),
             Is::Table{..} | Is::Shelf {..} |
-            Is::CeilingVent{..} | Is::CeilingDuct{ready: false, ..} | 
+            Is::CeilingVent{..} | Is::CeilingDuct{ready: true, ..} | 
             Is::Drip{..} | Is::Drop(..) |
             Is::Stair(Vertical::Up, ..)
                 => (Span::Center, Rise::Top),
@@ -123,7 +123,7 @@ impl Kind {
             Is::Guitar |
             Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} |
             Is::Books | Is::Basket | Is::Macintosh | 
-            Is::CeilingDuct {ready: true, ..}
+            Is::CeilingDuct {ready: false, ..}
                 => (Span::Center, Rise::Bottom),
             Is::Wall(side) => ((-side).into(), Rise::Bottom)
         }
