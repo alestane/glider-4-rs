@@ -196,10 +196,7 @@ impl Object {
                 *position.y_mut() += 3;
                 const{ Size::new(16, 16) }
             }
-            Kind::Steam{progress: Range{start: ..0, ..}} => { 
-                *position.x_mut() -= 20;
-                *position.y_mut() -= 30;
-                const{ Size::new(128, 128) } 
+            Kind::Steam{progress: Range{start: -10..0, ..}} => const{ Size::new(128, 128),
             }
             Kind::Guitar => {
                 *position.y_mut() -= 56;
