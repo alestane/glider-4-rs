@@ -136,6 +136,9 @@ mod object {
                 Is::Fish(Motion{limit: Range{start: 1.., ..}, ..}) => ("fish", 4, CENTER),
                 Is::Fish(Motion{velocity, ..}) => ("fish", match velocity {..-15 => 1, -15..=15 => 2, 16.. => 3}, CENTER),
                 Is::Toaster{..} => ("toaster", 0, BOTTOM),
+                Is::Toast(_, slot) => return {display.clipping(Rect::new(self.1.position.x() as i32 - 16, 0, 32, slot as u32), 
+                    |display| display.sprite(self.1.position.into(), CENTER, "toaster", self.0.into().unwrap_or(1))
+                );},
                 Is::Balloon(..) => ("balloon", atlas::POPPED, CENTER),
                 Is::Copter(..) => ("copter", atlas::CRUMPLED, CENTER),
                 Is::Dart(..) => ("dart", atlas::CRUSHED, CENTER),
@@ -381,6 +384,8 @@ mod object {
 }    
 
 mod room {
+    use std::ops::Range;
+
     use super::*; 
 
     impl Visible for (&Texture<'_>, [u8; 8]) {
@@ -453,6 +458,13 @@ mod room {
             ).collect::<Vec<_>>();
 
             for (id, item) in items.into_iter().filter(|&(_, o)| o.is_dynamic()) {
+                if let object::Kind::Toast(object::Motion{limit: Range{start, ..}, ..}, _) = item.kind {
+                    if start > 0 {
+                        animations.borrow_mut().remove(&id.get());
+                    } else {
+                        animations.borrow_mut().try_insert(id.get(), Box::new(atlas::TOAST.cycle().flat_map(|i| repeat(i).take(2)))).ok();
+                    }
+                }
                 let frame = animations.check(id.get());
                 (frame, item).show(display);
             }
