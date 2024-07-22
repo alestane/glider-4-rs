@@ -103,6 +103,7 @@ impl object::Kind {
             Is::Balloon(Range{start, ..}) => (start, (random() % 400 + 50, 358)),
             Is::Copter(Range{start, ..}) => (start, (random() % 256 + 272, -16)),
             Is::Dart(Range{start, ..}) => (start, (544, random() % 150 + 11)),
+            Is::Steam{progress: Range{start, ..}} => (start, (0, 0)),
             _ => return None,
         };
         *start = -delay;
