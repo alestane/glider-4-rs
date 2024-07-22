@@ -5,7 +5,7 @@ use crate::resources;
 const HOUSE_HEADER: usize = 1270;
 const ROOM_SIZE: usize = 314;
 
-pub const START: NonZero<u16> = NonZero::new(1).unwrap();
+pub const START: NonZero<u16> = NonZero::new(35).unwrap();
 
 fn index(i: usize) -> Range<usize> {
     let start = HOUSE_HEADER + i * ROOM_SIZE;
