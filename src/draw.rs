@@ -132,6 +132,7 @@ mod object {
                 Is::Guitar => ("visual", atlas::GUITAR, BOTTOM),
                 Is::Flame => ("fire", 0, CENTER),
                 Is::Ball(..) => ("ball", atlas::BALL, CENTER),
+                Is::Teakettle{..} => ("blowers", atlas::KETTLE, BOTTOM),
                 Is::Fishbowl{..} => ("fish", atlas::FISHBOWL, BOTTOM),
                 Is::Fish(Motion{limit: Range{start: 1.., ..}, ..}) => ("fish", 4, CENTER),
                 Is::Fish(Motion{velocity, ..}) => ("fish", match velocity {..-15 => 1, -15..=15 => 2, 16.. => 3}, CENTER),
