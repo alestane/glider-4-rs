@@ -9,6 +9,7 @@ pub mod color {
     const ROOM_206: &[u8] = include_bytes!("color/206.png");
     const ROOM_207: &[u8] = include_bytes!("color/207.png");
     const ROOM_208: &[u8] = include_bytes!("color/208.png");
+    const ROOM_209: &[u8] = include_bytes!("color/209.png");
 
     pub fn assets() -> HashMap<usize, &'static [u8]> {
         HashMap::from_iter(
@@ -21,6 +22,7 @@ pub mod color {
                 (206, ROOM_206),
                 (207, ROOM_207),
                 (208, ROOM_208),
+                (209, ROOM_209),
             ]
         )
     }
