@@ -29,7 +29,6 @@ pub fn run(context: &mut crate::App, theme: &Texture, room: (NonZero<u16>, &Room
     );
     let mut display = (display, &context.sprites);
     let mut play = room.1.start(target);
-    if let Entrance::Spawn(..) = target { play.reset(Entrance::default()) };
     let animation = Animations::default();
     {
         let mut animation = animation.borrow_mut();
