@@ -6,6 +6,7 @@ pub mod color {
     const ROOM_201: &[u8] = include_bytes!("color/201.png");
     const ROOM_202: &[u8] = include_bytes!("color/202.png");
     const ROOM_204: &[u8] = include_bytes!("color/204.png");
+    const ROOM_205: &[u8] = include_bytes!("color/205.png");
     const ROOM_206: &[u8] = include_bytes!("color/206.png");
     const ROOM_207: &[u8] = include_bytes!("color/207.png");
     const ROOM_208: &[u8] = include_bytes!("color/208.png");
@@ -19,6 +20,7 @@ pub mod color {
                 (201, ROOM_201),
                 (202, ROOM_202),
                 (204, ROOM_204),
+                (205, ROOM_205),
                 (206, ROOM_206),
                 (207, ROOM_207),
                 (208, ROOM_208),
