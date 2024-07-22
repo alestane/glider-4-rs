@@ -195,6 +195,15 @@ impl Object {
                 ),
                 position: self.position - (0, 18)
             },
+            Kind::Teakettle { delay } => {
+                let mut steam = Kind::Steam { progress: -10..(delay as i16) }.new()?;
+                steam.position = (const{Size::new(41, 30).unwrap()} / (Span::Center, Rise::Bottom) << self.position) * (Span::Left, Rise::Top);
+                if let Kind::Steam{progress: Range{start, ..}} = &mut steam.kind {
+                    *start += 20;
+                    eprintln!("{steam:?}");
+                    steam
+                } else { return None }
+            }
             _ => return None
         })
     }
@@ -209,6 +218,7 @@ impl Object {
             Kind::CeilingDuct { destination: Some(room), ready: false, ..} => Some(Event::Control(State::Escaping(Some(room), 0..16))),
             Kind::CeilingDuct {ready: true, ..} | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
             Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(faces, 0..11))) }
+            Kind::Steam{..} => {*motion.x_mut() -= 7; *motion.y_mut() -= 7; None}
             Kind::Grease {ready: true, ..} => Some(Event::Action(Change::Spill)),
             Kind::Grease {ready: false, ..} => {
                 *motion.y_mut() -= motion.y().saturating_add(test.bottom()) - self.position.y();
