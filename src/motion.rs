@@ -61,7 +61,7 @@ impl Iterator for object::Kind {
                     (0, (motion.limit.start >> 5) - position)
                 }
             }
-            Is::Ball(motion) | Is::Toast(motion) | Is::Fish(motion) => {
+            Is::Ball(motion) | Is::Toast(motion, ..) | Is::Fish(motion) => {
                 (0, if let Some(v) = motion.next() {v} else {motion.velocity = -motion.velocity; 0})
             }
             Is::Balloon(delay) => delay.next().is_none().then_some( (0, -3) )?, 

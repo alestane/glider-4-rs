@@ -77,7 +77,7 @@ pub enum Kind {
     Drip{range: u16},
     Drop(Motion),
     Toaster{range: u16, delay: u16},
-    Toast(Motion),
+    Toast(Motion, i16),
     Ball(Motion),
     Fishbowl{range: u16, delay: u16},
     Fish(Motion),
