@@ -73,8 +73,8 @@ const ITEMS: [Rect; 100] = [
     Rect::new_signed(160, 316, 192, 341),   // spark 2
     Rect::new_signed(144, 082, 162, 108),   // button switch
 
-    Rect::new_signed(0, 147, 38, 174),      // toaster
-    Rect::new_signed(304, 84, 336, 115),    // toast
+    Rect::new_signed(  0, 147,  38, 174),   // toaster
+    Rect::new_signed(304,  84, 336, 115),   // toast
     Rect::new_signed(304, 116, 336, 115),   //   "
     Rect::new_signed(304, 148, 336, 179),
     Rect::new_signed(304, 180, 336, 211),
