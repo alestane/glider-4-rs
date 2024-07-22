@@ -188,6 +188,13 @@ impl Object {
                 position: self.active_area()? * (Span::Center, Rise::Top) - (0, 2),
 
             },
+            Kind::Toaster { range, delay } => Object {
+                kind: Kind::Toast(
+                    {let mut launch = Motion::new(-((range as i16) << 5), delay as i16, 12); launch.reset(); launch}, 
+                    self.active_area()?.top() + 8
+                ),
+                position: self.position - (0, 18)
+            },
             _ => return None
         })
     }
