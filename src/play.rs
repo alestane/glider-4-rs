@@ -22,6 +22,8 @@ impl Entrance {
     fn action(&self) -> Option<State> {
         Some(match self {
             Self::Spawn(..) => State::FadingIn(0..16),
+            Self::Down => State::Ascending(room::VERT_FLOOR as i16 - 10),
+            Self::Up => State::Descending(room::VERT_CEILING as i16 + 10),
             _ => return None
         })
     }
@@ -341,10 +343,6 @@ pub enum Player {
             _ => None
         };
 
-        if let (Some((motion, _)), Some(State::Ascending(..))) = (control, &self.now) {
-            eprintln!("Asc: {motion:?}");
-        }
-
         let (mut motion, collision) = control.unwrap_or_else(|| {
             let mut motion = Displacement::new(0, 3);
             for action in actions {
@@ -487,12 +485,7 @@ pub enum Player {
         }
         self.player = Reference::new(x, y);
         self.motion = Displacement::default();
-        self.now = match at {
-            Entrance::Spawn(..) => Some(State::FadingIn(0..16)),
-            Entrance::Up => Some(State::Ascending(y)),
-            Entrance::Down => Some(State::Descending(y)),
-            _ => None,
-        }
+        self.now = at.action();
     }
 
     pub fn debug_zones<'this>(&'this self) -> impl Iterator<Item=Bounds> + 'this {
