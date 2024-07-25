@@ -35,7 +35,6 @@ struct App {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let images = resources::color::assets();
     let sdl = sdl2::init().unwrap();
     let window = sdl.video().unwrap().window("Glider", room::SCREEN_WIDTH, room::SCREEN_HEIGHT).build().unwrap();
     let display = window.into_canvas().present_vsync().build().unwrap();
@@ -43,7 +42,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut sprites = Surface::new(512, 598, display.default_pixel_format())?.into_canvas()?;
         let creator = sprites.texture_creator();
         let pixels = creator.load_texture_bytes(resources::color::SPRITES)?;
-        sprites.copy(&pixels, None, None);
+        sprites.copy(&pixels, None, None).ok();
         sprites.into_surface()
     };
     let mut app = App {

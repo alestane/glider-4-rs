@@ -1,7 +1,7 @@
-use sdl2::{image::LoadTexture, keyboard::{KeyboardState, Scancode}, pixels::PixelFormatEnum, render::{Texture, TextureCreator}, surface::{Surface, SurfaceRef}};
-use glider::{Entrance, Environment, Input, Outcome, Play, Room, House, Side, Update};
-use crate::{atlas, draw::{Animations, Frame, Scribe}, object, room::{self, SCREEN_HEIGHT, SCREEN_WIDTH}};
-use std::{collections::HashMap, error::Error, fmt::Display, iter::repeat, num::NonZero, ops::{Deref, Range}, time::{Duration, Instant}};
+use sdl2::{keyboard::{KeyboardState, Scancode}, surface::Surface};
+use glider::{Entrance, Environment, Input, Outcome, Play, Room, Side, Update};
+use crate::{atlas, draw::{Animations, Frame, Scribe}, object, room::{self}};
+use std::{collections::HashMap, error::Error, fmt::Display, iter::repeat, num::NonZero, ops::Range, time::{Duration, Instant}};
 
 const FADE_IN: &[usize] = &[3, 4, 3, 4, 5, 4, 5, 6, 5, 6, 7, 6, 7, 8, 7, 8, 9];
 const FADE_OUT: &[usize] = &[9, 8, 9, 8, 7, 8, 7, 6, 7, 6, 5, 6, 5, 4, 5, 4, 3];
@@ -42,7 +42,8 @@ impl Display for PlayRoomError {
 impl Error for PlayRoomError {}
 
 impl Game {
-    pub fn run(&mut self, context: &mut crate::App, room: NonZero<u16>, target: Entrance) -> Result<(u32, Option<(NonZero<u16>, Entrance)>), Box<dyn Error>> {
+    pub fn run(&mut self, context: &mut crate::App, target: Entrance) -> Result<(u32, Option<(NonZero<u16>, Entrance)>), Box<dyn Error>> {
+        let room = self.current_room;
         let display = &mut context.display;
         display.set_blend_mode(sdl2::render::BlendMode::Blend);
         let creator = display.texture_creator();
@@ -125,9 +126,9 @@ impl Game {
     pub fn play(&mut self, context: &mut crate::App) -> Result<(u32, NonZero<u16>), Box<dyn Error>> {
         let mut arrive = Entrance::default();
         while let (points, Some((next, at))) = {
-            let (room, backdrop) = self.rooms.get_mut(&self.current_room).ok_or(PlayRoomError::UnknownRoom(self.current_room))?;
+            let (room, _) = self.rooms.get_mut(&self.current_room).ok_or(PlayRoomError::UnknownRoom(self.current_room))?;
             eprintln!("Object count: {}", room.len());
-            self.run(context, self.current_room, arrive)?
+            self.run(context, arrive)?
         } {
             self.score += points;
             if next.get() as usize > self.len() { return Err(Box::new(PlayRoomError::UnknownRoom(next))) }
@@ -156,7 +157,7 @@ impl crate::App {
                             let mut room = Surface::new(room::SCREEN_WIDTH, room::SCREEN_HEIGHT, self.display.default_pixel_format())?.into_canvas()?;
                             let processor = room.texture_creator();
                             let sprites = atlas::glider_sprites(self.sprites.as_ref().as_texture(&processor)?);
-                            (&mut room, &sprites).show(&(&themes[&({eprintln!("{}", r.theme_index()); r.theme_index()} as usize)], r));
+                            (&mut room, &sprites).show(&(&themes[&(r.theme_index() as usize)], r));
                             room.into_surface()
                         }
                     )

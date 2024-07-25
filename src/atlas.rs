@@ -1,6 +1,6 @@
-use std::{ops::{Deref, Index, Range}, collections::HashMap};
+use std::{ops::{Index, Range}, collections::HashMap};
 
-use sdl2::{image::LoadTexture, pixels::PixelFormatEnum, render::Texture, surface::Surface};
+use sdl2::{image::LoadTexture, pixels::PixelFormatEnum, surface::Surface};
 
 use crate::{room, space::Rect};
 
@@ -280,7 +280,7 @@ pub fn rooms() -> HashMap<usize, Surface<'static>> {
                         let mut bits = Surface::new(room::SCREEN_WIDTH, room::SCREEN_HEIGHT, PixelFormatEnum::ABGR8888).ok()?.into_canvas().ok()?;
                         let processor = bits.texture_creator();
                         let pict = processor.load_texture_bytes(bytes).ok()?;
-                        bits.copy(&pict, None, None);
+                        bits.copy(&pict, None, None).ok();
                         bits.into_surface()
                     }))
                 )?
