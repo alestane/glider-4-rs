@@ -1,5 +1,5 @@
 use super::{Success, room::{self, Room}};
-use std::{ops::Index, time::SystemTime};
+use std::{ops::{AddAssign, Deref, Index}, time::SystemTime};
 
 #[disclose]
 #[derive(Debug)]
@@ -11,6 +11,17 @@ pub struct House {
     next_file: String,
     first_file: String,
     rooms: Vec<Room>,
+}
+
+impl AddAssign for House {
+    fn add_assign(&mut self, mut rhs: Self) {
+        self.rooms.append(&mut rhs.rooms);
+    }
+}
+
+impl Deref for House {
+    type Target = [Room];
+    fn deref(&self) -> &Self::Target { &self.rooms }
 }
 
 impl Index<room::Id> for House {
