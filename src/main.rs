@@ -1,13 +1,16 @@
 #![feature(
     const_option, const_trait_impl, effects, 
     generic_arg_infer, slice_as_chunks, iter_advance_by,
-    map_try_insert
+    map_try_insert, iterator_try_collect
 )]
 
-use sdl2::{image::LoadTexture, video::Window, render::Canvas, EventPump};
+use std::error::Error;
+
+use sdl2::{image::LoadTexture, render::Canvas, surface::Surface, video::Window, EventPump};
 
 mod room {
 	use glider::prelude::room;
+    pub use room::Id;
 	pub const SCREEN_WIDTH:		u32 = room::SCREEN_WIDTH as u32;
 	pub const SCREEN_HEIGHT:	u32 = room::SCREEN_HEIGHT as u32;
 	pub const VERT_CEILING:		u32 = room::VERT_CEILING as u32;
@@ -25,24 +28,30 @@ mod test;
 
 use atlas::Atlas;
 
-struct App<'me> {
+struct App {
     display: Canvas<Window>,
-    sprites: Atlas<'me>,
+    sprites: Atlas<Surface<'static>>,
     events: EventPump,
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let images = resources::color::assets();
     let sdl = sdl2::init().unwrap();
     let window = sdl.video().unwrap().window("Glider", room::SCREEN_WIDTH, room::SCREEN_HEIGHT).build().unwrap();
-    let canvas = window.into_canvas().present_vsync().build().unwrap();
-    let loader = canvas.texture_creator();
-    let room = loader.load_texture_bytes(images[&200]).unwrap();
+    let display = window.into_canvas().present_vsync().build().unwrap();
+    let sprites = {
+        let mut sprites = Surface::new(512, 598, display.default_pixel_format())?.into_canvas()?;
+        let creator = sprites.texture_creator();
+        let pixels = creator.load_texture_bytes(resources::color::SPRITES)?;
+        sprites.copy(&pixels, None, None);
+        sprites.into_surface()
+    };
     let mut app = App {
-        display: canvas,
-        sprites: atlas::glider_sprites(loader.load_texture_bytes(images[&128]).unwrap()),
+        display,
+        sprites: atlas::glider_sprites(sprites),
         events: sdl.event_pump().unwrap(),
     };
-    game::play(&mut app, &atlas::rooms(&loader), &test::house())
-        .ok();
+    let mut this_game = app.prepare(&test::stock_house(), &atlas::rooms()).expect("Couldn't load game");
+    this_game.play(&mut app).ok();
+    Ok(())
 }

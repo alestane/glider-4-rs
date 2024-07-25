@@ -1,8 +1,8 @@
-use std::{ops::Range, collections::HashMap};
+use std::{ops::{Deref, Index, Range}, collections::HashMap};
 
-use sdl2::{image::LoadTexture, render::Texture};
+use sdl2::{image::LoadTexture, pixels::PixelFormatEnum, render::Texture, surface::Surface};
 
-use crate::space::Rect;
+use crate::{room, space::Rect};
 
 const ITEMS: [Rect; 100] = [
     Rect::new_signed(256, 0, 304, 11),      // shadow right
@@ -218,18 +218,27 @@ pub const STAIRS_DOWN   : usize = 1;
 const SHREDDED      : Range<usize> = 99..100;
 pub const BITS      : usize = 0;
 
-pub struct Atlas<'a> {
-    pixels: sdl2::render::Texture<'a>,
-    blocks: std::collections::HashMap<&'static str, &'static [Rect]>
+pub struct Atlas<P> {
+    pixels: P,
+    blocks: HashMap<&'static str, &'static [Rect]>
 }
 
-impl<'a> Atlas<'a> {
-    pub fn get(&self, name: &str) -> (&'static [Rect], &'a sdl2::render::Texture) {
+impl<P> AsRef<P> for Atlas<P> {
+    fn as_ref(&self) -> &P { &self.pixels }
+}
+
+impl<P> Index<&str> for Atlas<P> {
+    type Output = [Rect];
+    fn index(&self, index: &str) -> &Self::Output { &self.blocks[index] }
+}
+
+impl<P> Atlas<P> {
+    pub fn get(&self, name: &str) -> (&'static [Rect], &P) {
         (self.blocks[name], &self.pixels)
     }
 }
 
-pub fn glider_sprites<'a>(pixels: sdl2::render::Texture<'a>) -> Atlas<'a> {
+pub fn glider_sprites<P>(pixels: P) -> Atlas<P> {
     let blocks = HashMap::from_iter(
         [
             ("glider.right", &ITEMS[GLIDE_RIGHT]),
@@ -262,8 +271,19 @@ pub fn glider_sprites<'a>(pixels: sdl2::render::Texture<'a>) -> Atlas<'a> {
     }
 }
 
-use sdl2::{video::WindowContext, render::TextureCreator};
-
-pub fn rooms(handler: &TextureCreator<WindowContext>) -> HashMap<usize, Texture> {
-    HashMap::from_iter(crate::resources::color::assets().iter().filter_map(|(&index, &bytes)| (index >= 200).then(|| handler.load_texture_bytes(bytes).ok().map(|tx| (index, tx)))?))
+pub fn rooms() -> HashMap<usize, Surface<'static>> {
+    HashMap::from_iter(
+        crate::resources::color::assets().iter().filter_map(
+            |(&index, &bytes)| 
+                (index >= 200).then(|| 
+                    Some((index, {
+                        let mut bits = Surface::new(room::SCREEN_WIDTH, room::SCREEN_HEIGHT, PixelFormatEnum::ABGR8888).ok()?.into_canvas().ok()?;
+                        let processor = bits.texture_creator();
+                        let pict = processor.load_texture_bytes(bytes).ok()?;
+                        bits.copy(&pict, None, None);
+                        bits.into_surface()
+                    }))
+                )?
+        )
+    )
 }
