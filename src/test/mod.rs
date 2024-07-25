@@ -23,3 +23,9 @@ pub fn house() -> Box<[Room]> {
         )
     )
 }
+
+pub fn stock_house() -> glider::House {
+    let mut a = resources::THE_HOUSE.try_into().unwrap();
+    a += resources::TWO_HOUSE.try_into().unwrap();
+    a
+}
