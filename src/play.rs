@@ -294,9 +294,9 @@ pub enum Player {
     Shredding{height: u16}
 }
 
- impl Play {
-    #[inline]
-    pub fn child_id(parent: &Object) -> NonZero<usize> { unsafe{ NonZero::new_unchecked(parent as *const _ as usize + 40) } }
+impl Play {
+    pub fn len(&self) -> usize { self.objects.len() }
+
     fn update(&mut self) -> Option<Progress> {
         let state = self.now.as_mut()?;
         if let State::Turning(faces, ..) = state { self.facing = *faces }
