@@ -403,9 +403,7 @@ impl From<std::array::TryFromSliceError> for InvalidRoomError {
 }
 
 impl From<std::convert::Infallible> for InvalidRoomError {
-    fn from(_: std::convert::Infallible) -> Self {
-        Self::Fail
-    }
+    fn from(_: std::convert::Infallible) -> Self { Self::Fail }
 }
 
 struct EnemyCode(u16, i16);
@@ -496,7 +494,26 @@ impl TryFrom<binary::House> for House {
         })
     }
 }
- 
+
+#[derive(Debug)]
+pub enum HouseImportError {
+    WrongDataSize(std::array::TryFromSliceError),
+    MalformedRoom(InvalidRoomError),
+}
+
+impl From<std::array::TryFromSliceError> for HouseImportError {
+    fn from(value: std::array::TryFromSliceError) -> Self { Self::WrongDataSize(value) }
+}
+impl From<InvalidRoomError> for HouseImportError {
+    fn from(value: InvalidRoomError) -> Self { Self::MalformedRoom(value) }
+}
+
+impl TryFrom<&[u8]> for House {
+    type Error = HouseImportError;
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Self::try_from(*<&binary::House>::try_from(value)?)?)
+    }
+} 
 
 #[cfg(test)]
 mod test {
