@@ -423,6 +423,14 @@ mod room {
         }
     }
 
+    impl Visible for (&Surface<'_>, &Room) {
+        fn show<Display: Scribe>(&self, display: &mut Display) {
+            let loader = display.get_builder();
+            let tx = loader.load(self.0).expect("Could not generate texture version of surface");
+            (&tx, self.1).show(display)
+        }
+    }
+
     impl Visible for Texture<'_> {
         fn show<Display: Scribe>(&self, display: &mut Display) {
             display.draw(self, None, None)
@@ -508,8 +516,13 @@ impl Illuminator for Canvas<Window> {
     fn get_builder(&self) -> Self::Builder { self.texture_creator() }
 }
 
-impl<T> Illuminator for (&mut Canvas<Window>, T) {
-    type Builder = <Canvas<Window> as Illuminator>::Builder;
+impl<'s> Illuminator for Canvas<Surface<'s>> {
+    type Builder = TextureCreator<sdl2::surface::SurfaceContext<'s>>;
+    fn get_builder(&self) -> Self::Builder { self.texture_creator() }
+}
+
+impl<I: Illuminator, T> Illuminator for (&mut I, T) {
+    type Builder = <I as Illuminator>::Builder;
     fn get_builder(&self) -> Self::Builder { self.0.get_builder() }
 }
 
@@ -528,7 +541,7 @@ pub trait Scribe : Illuminator {
     fn sprite(&mut self, position: (i16, i16), anchor: Anchor, name: &str, index: usize);
 }
 
-impl<R:RenderTarget, T> Scribe for (&mut Canvas<R>, &Atlas<'_>) where Self: Illuminator<Builder = sdl2::render::TextureCreator<T>> {
+impl<R:RenderTarget> Scribe for (&mut Canvas<R>, &Atlas<Texture<'_>>) where Self: Illuminator {
     fn clear(&mut self, color: sdl2::pixels::Color) {
         let display = &mut *self.0;
         display.set_draw_color(color);
