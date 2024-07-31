@@ -62,7 +62,7 @@ mod object {
             match
                 match self.kind {
                     Is::Table{width} => {
-                        let bounds = Size::from((width, const{ NonZero::new(9).unwrap() })) / (Span::Center, Rise::Top) << self.position;
+                        let bounds = Size::from((width, const{ NonZero::new(9).unwrap() })) / (Span::Center, Rise::Top) << *self.position;
                         draw_table(display, Frame::from(bounds).into())
                     }
                     Is::Shelf{width} => {
@@ -456,7 +456,7 @@ mod room {
                 |&(_, o)| {
                     if let object::Kind::Mirror(size) = o.kind {
                         let size = size - (8, 8);
-                        let bounds = space::Rect::from(size / CENTER << o.position);
+                        let bounds = space::Rect::from(size / CENTER << *o.position);
                         display.clipping(bounds, |display|
                             display.sprite((player_position.0 - 16, player_position.1 - 32), CENTER, block, frame)
                         );
@@ -490,7 +490,7 @@ mod room {
                     }
                 },
                 None => display.sprite((player_position.0, player_position.1 + 10), BOTTOM, block, frame),
-            }
+            } 
             display.publish();
         }
     }
@@ -617,7 +617,7 @@ impl<R:RenderTarget> Scribe for (&mut Canvas<R>, &Atlas<Texture<'_>>) where Self
         let (wedge, tex) = self.1.get(name);
         let frame = wedge[index];
         let size = Bounds::from(frame).size();
-        let bounds = space::Rect::from(size / anchor << Reference::from(position));
+        let bounds = space::Rect::from(size / anchor << *Reference::from(position));
         self.draw(tex, wedge[index], bounds);
     }
 }

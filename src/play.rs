@@ -67,17 +67,17 @@ impl std::iter::Iterator for State {
             Self::FadingOut(phase)  |
             Self::Turning(_, phase)  
                 => phase.next().map(|_| (Displacement::default(), false)),
-            Self::Burning(phase) => {if phase.next().is_none() {eprintln!("burn timeout"); *self = DIE}; Some(((1, 3).into(), true)) },
+            Self::Burning(phase) => {if phase.next().is_none() {eprintln!("burn timeout"); *self = DIE}; Some(((1i16, 3i16).into(), true)) },
             Self::Shredding{height, top, ..} => {
                 if *top > 342 {return None}
-                Some(((0, match height {
+                Some(((0i16, match height {
                     ..36 => {*height += 1; 0}
                     _ => {*top += 8; 8}
                 }).into(), false))
             },
             Self::Stairs(..) => None,
-            Self::Ascending(v) => {*v -= 6; (*v >= 230).then_some(((-2, -6).into(), false))}
-            Self::Descending(v) => {*v += 6; (*v <= 130).then_some(((2, 6).into(), false))},
+            Self::Ascending(v) => {*v -= 6; (*v >= 230).then_some(((-2i16, -6i16).into(), false))}
+            Self::Descending(v) => {*v += 6; (*v <= 130).then_some(((2i16, 6i16).into(), false))},
         }
     }
 }
@@ -197,7 +197,7 @@ impl Object {
             },
             Kind::Teakettle { delay } => {
                 let mut steam = Kind::Steam { progress: -10..(delay as i16) }.new()?;
-                steam.position = (const{Size::new(41, 30).unwrap()} / (Span::Center, Rise::Bottom) << self.position) * (Span::Left, Rise::Top);
+                steam.position = (const{Size::new(41, 30).unwrap()} / (Span::Center, Rise::Bottom) << *self.position) * (Span::Left, Rise::Top);
                 if let Kind::Steam{progress: Range{start, ..}} = &mut steam.kind {
                     *start += 20;
                     eprintln!("{steam:?}");
@@ -383,7 +383,7 @@ impl Play {
             animated.advance()
         }
         let events = if collision {
-            if let Ok(touch) = Bounds::try_from(PLAYER_SIZE / (Span::Center, Rise::Center) << self.player) {
+            if let Ok(touch) = Bounds::try_from(PLAYER_SIZE / (Span::Center, Rise::Center) << *self.player) {
                 let objects = 
                     self.objects.iter().enumerate().filter_map(|(i, o)| Some((object::Id::try_from(i).ok()?, o.as_ref()?)) )
                         .chain(self.walls.iter().map(|wall| (const{object::Id(NonZero::new(usize::MAX).unwrap())}, wall)));

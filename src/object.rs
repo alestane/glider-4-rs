@@ -114,7 +114,7 @@ impl Kind {
             Is::Toast(..) | Is::Fish(..) | Is::Ball(..)
                 => (Span::Center, Rise::Center),
             Is::Fan{faces, ..} 
-                => (Span::from(-faces), Rise::Center),
+                => (match faces {Side::Left => Span::Right, Side::Right => Span::Left}, Rise::Center),
             Is::Grease{ready: true, ..} => (Span::Right, Rise::Bottom),
             Is::Grease{ready: false, ..} => (Span::Left, Rise::Center),
             Is::Stair(Vertical::Down, ..) |
@@ -125,7 +125,7 @@ impl Kind {
             Is::Books | Is::Basket | Is::Macintosh | 
             Is::CeilingDuct {ready: false, ..}
                 => (Span::Center, Rise::Bottom),
-            Is::Wall(side) => ((-side).into(), Rise::Bottom)
+            Is::Wall(side) => (match side {Side::Left => Span::Right, Side::Right => Span::Left}, Rise::Bottom)
         }
     }
 }
@@ -204,7 +204,7 @@ impl Object {
             Kind::Window(..) | Kind::Painting | Kind::Mirror(..) | Kind::Teakettle{..} => None,
             _ => None
         }?;
-        Some(size / anchor << position)
+        Some(size / anchor << *position)
     }
 
     pub fn is_cosmetic(&self) -> bool {
