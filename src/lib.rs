@@ -1,9 +1,8 @@
 #![feature(
     iter_next_chunk, slice_as_chunks, iterator_try_collect, is_none_or,
-    iter_advance_by, iter_collect_into,
-    const_trait_impl, effects, const_option,
-    generic_arg_infer, generic_const_exprs, const_refs_to_cell,
-    nonzero_internals
+    iter_advance_by, iter_collect_into, const_try,
+    const_option,
+    generic_arg_infer, generic_const_exprs, const_refs_to_cell
 )]
 
 #[macro_use]
@@ -47,13 +46,12 @@ mod prelude {
 
 mod cart;
 
-pub type Bounds = cart::Rect<i16>;
-pub type Position = cart::Point<i16>;
+pub type Bounds = cart::Rect;
+pub type Position = cart::Point;
 pub type Interval = Range<i16>;
-pub type Reference = cart::Point<i16>;
-pub type Displacement = cart::Displacement<i16>;
-pub type Size = cart::Size<u16>;
-pub use cart::Transfer;
+pub type Reference = cart::Point;
+pub type Displacement = cart::Displacement;
+pub type Size = cart::Size;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Input {

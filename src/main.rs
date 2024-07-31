@@ -1,5 +1,5 @@
 #![feature(
-    const_option, const_trait_impl, effects, 
+    const_option, 
     generic_arg_infer, slice_as_chunks, iter_advance_by,
     map_try_insert, iterator_try_collect
 )]

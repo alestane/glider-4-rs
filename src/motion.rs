@@ -80,7 +80,7 @@ impl Object {
     pub fn advance(&mut self) {
         if let Some(offset) = self.kind.next() {
             type Is = object::Kind;
-            self.position += <(_,_)>::from(offset);
+            self.position += offset;
             match self.kind {
                 Is::Balloon(..) | Is::Copter(..) | Is::Dart(..) if (self.active_area() & room::BOUNDS).is_none() 
                     => self.reset(),
