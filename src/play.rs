@@ -32,6 +32,7 @@ impl Entrance {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum State {
 	Escaping(Option<room::Id>, Range<u8>),
+    Landed,
     Sliding(i16),
     FadingIn(Range<u8>),
     FadingOut(Range<u8>),
@@ -62,6 +63,10 @@ impl std::iter::Iterator for State {
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             Self::Sliding(..) => None,
+            Self::Landed => {
+                *self = Self::FadingOut(1..16);
+                Some((Displacement::default(), false))
+            }
         	Self::Escaping(_, phase) |
             Self::FadingIn(phase)   |
             Self::FadingOut(phase)  |
@@ -95,11 +100,12 @@ impl From<&State> for u8 {
             State::Shredding{..} => 0,
         	State::Escaping(None, _) => 1,
         	State::Escaping(..) | State::Stairs(..) => 2,
+            State::Landed => 48,
             State::Sliding(..) => 15u8, 
             State::Ascending(..) | State::Descending(..) 
                 => 16u8,
             State::FadingIn(phase) => 32u8 + phase.start,
-            State::FadingOut(phase) => 48u8 + phase.start,
+            State::FadingOut(phase) => 4u8 + phase.start / 2,
             State::Burning(_) => 80u8,
             State::Turning(_, phase) => 96u8 + phase.start,
         }
@@ -226,10 +232,12 @@ impl Object {
             }
             Kind::Shredder{..}
                 => Some(Event::Control(State::Shredding{height: 0, x: self.position.x() + 3, top: self.position.y() + 2})),
-            Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | Kind::Obstacle{..} | Kind::Basket | 
-            Kind::Macintosh | Kind::Drop{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} | Kind::Fish{..} |
-            Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..)
-                => {eprintln!("{:?}", self.kind); Some(Event::Control(DIE))},
+            Kind::Table{..} | Kind::Shelf{..} | Kind::Books | Kind::Cabinet{..} | 
+            Kind::Obstacle{..} | Kind::Basket | Kind::Macintosh 
+                => Some(Event::Control(State::Landed)),
+            Kind::Drop{..} | Kind::Toaster {..} | Kind::Ball{..} | Kind::Fishbowl {..} | 
+            Kind::Fish{..} | Kind::Balloon(..) | Kind::Copter(..) | Kind::Dart(..)
+                => Some(Event::Control(DIE)),
             Kind::Flame | Kind::Outlet{..} => Some(Event::Control(IGNITE)),
             Kind::Clock(..) | Kind::Bonus(..) |
             Kind::Battery(..) |
