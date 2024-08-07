@@ -1,4 +1,4 @@
-use crate::{Environment, Position, Reference, Displacement, Size, Bounds, Update, Vertical, cart::{Rise, Span}};
+use crate::{Environment, Position, Reference, Displacement, Size, Bounds, Update, Vertical, cart::{Rise, Span}, prelude::{Blow, Travel}};
 
 use super::{Input, Outcome, object::{self, Object, Kind, Motion}, room::{self, On, Room}, Side};
 use std::{iter::{from_fn, once}, num::NonZero, ops::{Index, IndexMut, Range}};
@@ -213,10 +213,10 @@ impl Object {
         let previous = *motion;
         let (h, v) = motion.as_mut();
         match self.kind {
-            Kind::CeilingDuct { destination: None, ready: false, ..} => Some(Event::Action(Change::Transport)),
+            Kind::CeilingDuct(Travel(None)) => Some(Event::Action(Change::Transport)),
             Kind::Exit{to: Some(room), ..} |
-            Kind::CeilingDuct { destination: Some(room), ready: false, ..} => Some(Event::Control(State::Escaping(Some(room), 0..16))),
-            Kind::CeilingDuct {ready: true, ..} | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
+            Kind::CeilingDuct(Travel(Some(room))) => Some(Event::Control(State::Escaping(Some(room), 0..16))),
+            Kind::CeilingDuct(Blow(..)) | Kind::CeilingVent {..} => {if state.on.air {*v = 8}; None},
             Kind::Fan { faces, .. } => {*h = faces * 7; (faces != state.facing).then_some(Event::Control(State::Turning(faces, 0..11))) }
             Kind::Steam{..} => {*motion.x_mut() -= 7; *motion.y_mut() -= 7; None}
             Kind::Grease {ready: true, ..} => Some(Event::Action(Change::Spill)),
@@ -333,7 +333,6 @@ impl Play {
             Change::Toggle(id) => {
                 match &mut self.objects[id.get()] {
                     Some(Object{kind: Kind::Shredder { ready }, ..}) |
-                    Some(Object{kind: Kind::CeilingDuct { ready, .. }, ..}) |
                     Some(Object{kind: Kind::Fan { ready, .. }, ..}) 
                         => *ready = !*ready,
                     _ => ()

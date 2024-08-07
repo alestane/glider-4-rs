@@ -1,4 +1,6 @@
-use super::{Success, room::{self, Room}};
+use crate::object;
+
+use super::{Success, room::{self, Room}, prelude::Travel};
 use std::{ops::{AddAssign, Deref, Index}, time::SystemTime};
 
 #[disclose]
@@ -15,6 +17,21 @@ pub struct House {
 
 impl AddAssign for House {
     fn add_assign(&mut self, mut rhs: Self) {
+        type Kind = object::Kind;
+        let offset = self.rooms.len() as u16;
+        for room in &mut rhs.rooms {
+            if let Some(left) = &mut room.exits.left { *left += offset; }
+            if let Some(right) = &mut room.exits.right { *right += offset; }
+            for object in room {
+                match object.kind {
+                    Kind::CeilingDuct(Travel(Some(ref mut destination))) |
+                    Kind::Exit { to: Some(ref mut destination), .. } |
+                    Kind::Stair(_, ref mut destination)
+                        => *destination += offset,
+                    _ => ()
+                }
+            }
+        }
         self.rooms.append(&mut rhs.rooms);
     }
 }

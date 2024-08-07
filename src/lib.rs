@@ -28,9 +28,10 @@ mod prelude {
         pub type Id = super::NonZero<u16>;
     }
     pub mod object {
-        pub use crate::object::{Kind, Motion};
+        pub use crate::object::{Kind, Motion, Duct};
         pub type Id = super::NonZero<usize>;
     }
+    pub use object::Duct::*;
 
     pub type Anchor = (Span, Rise);
     pub const TOPLEFT:      Anchor = (Span::Left, Rise::Top);

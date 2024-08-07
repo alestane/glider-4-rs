@@ -5,6 +5,7 @@ use super::{*,
     object::{self, Object}, 
     house::House,
     cart::{Rise, Span},
+    prelude::{Blow, Travel},
 };
 
 fn string_from_pascal(bytes: &[u8]) -> String {
@@ -62,7 +63,8 @@ mod binary {
         bounds: [[u8; 2]; 4], // 8 // 10
         amount: [u8; 2], // 2 // 12
         extra: [u8; 2], // 2 // 14
-        is_on: [u8; 2], // 1 // 16
+        is_on: u8, // 1 // 16
+        _fill: u8
     }
 
     impl Default for Object {
@@ -95,7 +97,8 @@ mod binary {
                 // iter.next_chunk::<8>().unwrap().as_chunks().0[0..4].try_into().unwrap(),
                 amount: iter.next_chunk().unwrap(),
                 extra: iter.next_chunk().unwrap(),
-                is_on: iter.next_chunk().unwrap()
+                is_on: iter.next().unwrap(),
+                _fill: iter.next().unwrap(),
             }
         }
     }
@@ -330,7 +333,7 @@ impl TryFrom<binary::Object> for Object {
             return Err(BadObjectError::FaultyDimensions(left, top, right, bottom))
         };
         if bounds.right() > room::SCREEN_WIDTH || bounds.bottom() > room::SCREEN_HEIGHT { return Err(BadObjectError::OutOfRoom(bounds)) };
-        let (amount, extra, ready) = (u16::from_be_bytes(value.amount), u16::from_be_bytes(value.extra), u16::from_be_bytes(value.is_on) != 0);
+        let (amount, extra, ready) = (u16::from_be_bytes(value.amount), u16::from_be_bytes(value.extra), value.is_on != 0);
         use object::Kind;
         let kind = match u16::from_be_bytes(value.object_is) {
              0 => return Err(BadObjectError::NullObject),
@@ -344,14 +347,15 @@ impl TryFrom<binary::Object> for Object {
 
              8 => Kind::FloorVent{height:bounds.top() as u16 - amount},
              9 => Kind::CeilingVent{height: amount - bounds.bottom() as u16},
-            10 => Kind::CeilingDuct{height: amount - bounds.bottom() as u16, destination: Some(extra.into()), ready},
+            10 if  ready => Kind::CeilingDuct(Blow(amount - bounds.bottom() as u16)),
+            10 if !ready => Kind::CeilingDuct(Travel(Some(extra.into()))),
             11 => Kind::Candle{height: bounds.top() as u16 - amount},
             12 => Kind::Fan{faces: Side::Left, range: bounds.left() as u16 - amount, ready},
             13 => Kind::Fan{faces: Side::Right, range: amount - bounds.right() as u16, ready},
 
             16 => Kind::Clock(amount),
             17 => Kind::Paper(amount),
-            18 => Kind::Grease{progress: -3..(amount as i16 - bounds.right()), ready},
+            18 => Kind::Grease{progress: -3..(1 + amount as i16 - bounds.right()), ready},
             19 => Kind::Bonus(amount, bounds.size()),
             20 => Kind::Battery(amount as u8),
             21 => Kind::RubberBands(amount as u8),
@@ -438,7 +442,7 @@ impl<T: TryInto<binary::Room>> TryFrom<(room::Id, T)> for Room where InvalidRoom
         let _n_objects@0..=16 = u16::from_be_bytes(header.object_count) else {
             return InvalidRoomError::Fail.into()
         };
-        let mut this = Self {
+        let this = Self {
             name: string_from_pascal(&header.name),
             back_pict_id: u16::from_be_bytes(header.back_pict_id),
             tile_order: header.tile_order.map(|[_, n]| n),
@@ -448,12 +452,6 @@ impl<T: TryInto<binary::Room>> TryFrom<(room::Id, T)> for Room where InvalidRoom
             environs: On {air: header.condition_code[1] != 1, lights: header.condition_code[1] != 2},
             objects: value.objects.into_iter().filter_map(|o| o.try_into().ok()).collect(),
         };
-        for o in &mut this.objects {
-            match o.kind {
-                object::Kind::CeilingDuct{ref mut destination, ..} if *destination == Some(id) => *destination = None,
-                _ => ()
-            }
-        }
         Ok(this)
     }
 }

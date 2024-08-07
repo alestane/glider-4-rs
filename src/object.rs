@@ -41,6 +41,12 @@ impl From<self::Id> for usize {
     fn from(value: self::Id) -> Self { Some(value.0.get() as u16) }
 } */
 
+#[derive(Debug, Clone, Copy)]
+pub enum Duct {
+    Blow(u16), 
+    Travel(Option<room::Id>),
+}
+
 #[derive(Debug, Clone)]
 pub enum Kind {
     Table{width: NonZero<u16>},
@@ -56,7 +62,7 @@ pub enum Kind {
 
     FloorVent{height: u16},
     CeilingVent{height: u16},
-    CeilingDuct{height: u16, ready: bool, destination: Option<room::Id>},
+    CeilingDuct(Duct),
     Candle{height: u16},
     Flame,
     Fan{faces: Side, range: u16, ready: bool},
@@ -101,7 +107,7 @@ impl Kind {
             Is::Steam{..} 
                 => (Span::Right, Rise::Bottom),
             Is::Table{..} | Is::Shelf {..} |
-            Is::CeilingVent{..} | Is::CeilingDuct{ready: true, ..} | 
+            Is::CeilingVent{..} | Is::CeilingDuct(Duct::Blow(..)) | 
             Is::Drip{..} | Is::Drop(..) |
             Is::Stair(Vertical::Up, ..)
                 => (Span::Center, Rise::Top),
@@ -123,7 +129,7 @@ impl Kind {
             Is::Guitar |
             Is::Teakettle{..} | Is::Fishbowl{..} | Is::Toaster{..} |
             Is::Books | Is::Basket | Is::Macintosh | 
-            Is::CeilingDuct {ready: false, ..}
+            Is::CeilingDuct(Duct::Travel(..))
                 => (Span::Center, Rise::Bottom),
             Is::Wall(side) => (match side {Side::Left => Span::Right, Side::Right => Span::Left}, Rise::Bottom)
         }
@@ -153,7 +159,7 @@ impl Object {
         let size = match self.kind {
             Kind::FloorVent { height } | Kind::Candle {height} => Size::new(16, height.max(1)),
             Kind::CeilingVent { height } => Size::new(16, height),
-            Kind::CeilingDuct { height, ready: true, .. } => Size::new(16, height),
+            Kind::CeilingDuct(Duct::Blow(height)) => Size::new(16, height),
             Kind::CeilingDuct{..} => const{ Size::new(48, 13) },
             Kind::Fan{faces, range, ready: true} => {
                 *position.x_mut() += faces * 17;
