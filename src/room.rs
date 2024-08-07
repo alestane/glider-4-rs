@@ -1,4 +1,4 @@
-use std::{num::NonZero, slice::SliceIndex, ops::Index};
+use std::{num::NonZero, slice::SliceIndex, ops::{AddAssign, Index}};
 
 use super::{*, object::Object};
 
@@ -32,6 +32,12 @@ impl From<self::Id> for Option<u16> {
 impl Id {
     pub fn prev(&self) -> Option<Id> { Some(Id(NonZero::new(self.0.get() - 1)?)) }
     pub fn next(&self) -> Option<Id> { Some(Id(self.0.checked_add(1)?)) }
+}
+
+impl AddAssign<u16> for Id {
+    fn add_assign(&mut self, rhs: u16) {
+        self.0 = self.0.saturating_add(rhs);
+    }
 }
 
 #[disclose]
@@ -124,4 +130,18 @@ impl IntoIterator for Room {
     type IntoIter = <Vec<Object> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter { self.objects.into_iter() }
+}
+
+impl<'a> IntoIterator for &'a Room {
+    type Item = &'a Object;
+    type IntoIter = <&'a Vec<Object> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter { (&self.objects).into_iter() }
+}
+
+impl<'a> IntoIterator for &'a mut Room {
+    type Item = &'a mut Object;
+    type IntoIter = <&'a mut Vec<Object> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter { (&mut self.objects).into_iter() }
 }
