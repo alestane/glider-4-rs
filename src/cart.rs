@@ -156,8 +156,17 @@ where
 }
 
 #[repr(transparent)]
-#[derive(Debug,  Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct Point (Displacement);
+
+impl Debug for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Point")
+            .field("x", &self.0.x_)
+            .field("y", &self.0.y_)
+            .finish()
+    }
+}
 
 impl Deref for Point {
     type Target = Displacement;
