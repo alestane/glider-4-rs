@@ -70,6 +70,7 @@ impl Iterator for object::Kind {
             Is::Grease { ready: false, progress } => {progress.next(); return None},
             Is::Outlet { progress } => {if let None = progress.next() {progress.start = -30;} return None},
             Is::Steam { progress } => {if let None = progress.next() {progress.start = -10;} return None},
+            Is::Switch(_, wait) => {wait.next(); return None},
             _ => return None,
             
         }.into())

@@ -360,11 +360,11 @@ impl TryFrom<binary::Object> for Object {
             20 => Kind::Battery(amount as u8),
             21 => Kind::RubberBands(amount as u8),
 
-            24 => Kind::Switch(None),
+            24 => Kind::Lights,
             25 => Kind::Outlet{progress: -30..(amount as i16)},
             26 => Kind::Thermostat,
             27 => Kind::Shredder{ready},
-            28 => Kind::Switch(Some(amount.into())),
+            28 => Kind::Switch(amount.into(), 0..0),
             29 => Kind::Guitar,
 
             32 => Kind::Drip{range: amount - bounds.top() as u16},

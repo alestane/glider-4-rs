@@ -17,6 +17,10 @@ mod room {
 	pub const VERT_FLOOR:		u32 = room::VERT_FLOOR as u32;
 }
 
+static mut DEBUG: bool = false;
+
+fn show_debug() -> bool { unsafe{ DEBUG } }
+
 use glider::prelude::object;
 
 mod space;
@@ -35,6 +39,9 @@ struct App {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    if let Some(_debug) = std::env::args().find(|flag| flag == "--debug") {
+        unsafe {DEBUG = true}
+    }
     let sdl = sdl2::init().unwrap();
     let window = sdl.video().unwrap().window("Glider", room::SCREEN_WIDTH, room::SCREEN_HEIGHT).build().unwrap();
     let display = window.into_canvas().present_vsync().build().unwrap();

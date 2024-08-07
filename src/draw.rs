@@ -117,8 +117,8 @@ mod object {
                 Is::Candle { .. } => ("blowers", atlas::CANDLE, BOTTOM),
                 Is::Fan { faces: Side::Right, .. } => ("blowers", atlas::FAN_RIGHT, BOTTOM),
                 Is::Fan { faces: Side::Left, .. } => ("blowers", atlas::FAN_LEFT, BOTTOM),
-                Is::Switch(Some(..)) => ("power", atlas::TOGGLE, CENTER),
-                Is::Switch(None) => ("power", atlas::SWITCH, CENTER),
+                Is::Switch(..) => ("power", atlas::TOGGLE, CENTER),
+                Is::Lights => ("power", atlas::SWITCH, CENTER),
                 Is::Thermostat => ("power", atlas::THERMO, CENTER),
                 Is::Outlet{progress: Range{start: phase@..=0, ..}} => ("shock", phase.rem_euclid(2) as usize, CENTER),
                 Is::Outlet{..} => ("power", atlas::OUTLET, CENTER),
@@ -477,8 +477,11 @@ mod room {
                 let frame = animations.check(id.get());
                 (frame, item).show(display);
             }
-            for _frame in play.debug_zones() {
-                // display.fill((0, 255, 0, 100), space::Rect::from(frame).into()).ok();
+            #[cfg(debug_assertions)]
+            if crate::show_debug() {
+                for frame in play.debug_zones() {
+                    display.fill((0, 255, 0, 100), space::Rect::from(frame).into()).ok();
+                }
             }
             match clip {
                 Some(height) => {

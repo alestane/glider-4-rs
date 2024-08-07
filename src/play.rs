@@ -245,8 +245,8 @@ impl Object {
             Kind::RubberBands(..) => Some(Event::Action(Change::Collect)),
             Kind::FloorVent { .. } | Kind::Candle { .. } => {if state.on.air {*v = -6}; None},
             Kind::Guitar => Some(Event::Display(Update::Start(Environment::Guitar, Some(id)))),
-            Kind::Switch(None) => Some(Event::Action(Change::Light)),
-            Kind::Switch(Some(target)) => Some(Event::Action(Change::Toggle(target))),
+            Kind::Lights => Some(Event::Action(Change::Light)),
+            Kind::Switch(target, _) => Some(Event::Action(Change::Toggle(target))),
             Kind::Thermostat => Some(Event::Action(Change::Heat)),
             Kind::Stair(flight, to) => Some(Event::Control(State::Stairs(flight, to))),
             Kind::Wall{..} => {
@@ -339,6 +339,9 @@ impl Play {
                 Update::Start(Environment::Grease, Some(source))
             }
             Change::Toggle(id) => {
+                if let Kind::Switch(_, Range{ref mut start, ..}) = self.objects[source.get()].as_mut()?.kind {
+                    *start = -45;
+                }
                 match &mut self.objects[id.get()] {
                     Some(Object{kind: Kind::Shredder { ready }, ..}) |
                     Some(Object{kind: Kind::Fan { ready, .. }, ..}) 
@@ -423,20 +426,22 @@ impl Play {
     }
 
     fn award(&mut self, id: object::Id) -> Option<Update> {
-        let ping = match self.objects[id.get()].take()?.kind {
+        let object = self.objects[id.get()].take()?;
+        let position = object.position;
+        let ping = match object.kind {
             Kind::Battery(value) => {
-                Update::Energy(value, id)
+                Update::Energy(value, position)
             }
             Kind::Bonus(value, _) |
             Kind::Clock(value) 
                 => {
-                    Update::Score(value, id)
+                    Update::Score(value, position)
                 }
             Kind::Paper(value) => {
-                Update::Life(value, id)
+                Update::Life(value, position)
             }
             Kind::RubberBands(count) => {
-                Update::Bands(count, id)
+                Update::Bands(count, position)
             }
             _ => return None
         };
@@ -458,7 +463,7 @@ impl Play {
             .filter_map(|(id, o)| { 
                 if self.dark() {
                     match o.kind {
-                        Kind::Switch(None) | Kind::Balloon(..) | Kind::Dart(..) | Kind::Copter(..) | 
+                        Kind::Lights | Kind::Balloon(..) | Kind::Dart(..) | Kind::Copter(..) | 
                         Kind::Outlet{progress: Range{start: ..=0, ..}, ..} | Kind::Drop(Motion{limit: Range{start: 1.., ..}, ..})
                             => (),
                         _ => return None,

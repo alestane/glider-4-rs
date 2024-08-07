@@ -8,11 +8,7 @@
 #[macro_use]
 extern crate disclose;
 
-use std::{
-    // num::NonZero, 
-    ops::{Mul, Neg, Range}, 
-    // time::{Duration, SystemTime}
-};
+use std::ops::{Mul, Neg, Range};
 
 #[disclose]
 mod prelude {
@@ -77,10 +73,10 @@ pub enum Environment {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Update {
-    Score(u16, object::Id),
-    Life(u16, object::Id),
-    Bands(u8, object::Id),
-    Energy(u8, object::Id),
+    Score(u16, Position),
+    Life(u16, Position),
+    Bands(u8, Position),
+    Energy(u8, Position),
     Shoot,
     Zoom,
     Start(Environment, Option<object::Id>),

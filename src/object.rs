@@ -74,7 +74,8 @@ pub enum Kind {
     Battery(u8),
     RubberBands(u8),
     
-    Switch(Option<Id>),
+    Lights, 
+    Switch(Id, Range<i16>),
     Outlet{progress: Interval},
     Thermostat,
     Shredder{ready: bool},
@@ -114,7 +115,7 @@ impl Kind {
             Is::Exit{..} |
             Is::Painting{..} | Is::Mirror(..) | Is::Window(..) |
             Is::Bonus(..) |
-            Is::Switch(..) | Is::Thermostat |
+            Is::Switch(..) | Is::Lights | Is::Thermostat |
             Is::Outlet{..} | Is::Shredder{..} | Is::Obstacle(..) | Is::Cabinet(..) |
             Is::Dart(..) | Is::Copter(..) | Is::Balloon(..) | Is::Flame | 
             Is::Toast(..) | Is::Fish(..) | Is::Ball(..)
@@ -184,7 +185,7 @@ impl Object {
             Kind::Battery(..) => const{ Size::new(16, 26) },
             Kind::Paper(..) => const{ Size::new(48, 21) },
             Kind::RubberBands(..) => const{ Size::new(32, 23) },
-            Kind::Switch(..) | Kind::Thermostat => const{ Size::new(18, 27) },
+            Kind::Lights | Kind::Switch(_, Range{start: 0.., ..}) | Kind::Thermostat => const{ Size::new(18, 27) },
             Kind::Grease {ready: true, ..} => const{ Size::new(32, 29) },
             Kind::Grease {ready: false, progress: Range{start, ..}} if start > 0 => Size::new(start as u16, 2),
             Kind::Dart(..) => const{ Size::new(64, 22) },
@@ -238,7 +239,7 @@ impl Object {
             Kind::Outlet{..} |
             Kind::Toast(..) |
             Kind::Toaster{..} |
-            Kind::Switch(None)
+            Kind::Lights
                 => true,
             _ => false
         }
