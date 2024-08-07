@@ -83,7 +83,7 @@ mod object {
                         let (left, top) = (self.position.x() as u32 - width / 2, self.position.y() as u32 - height / 2);
                         draw_window(display, Frame::new_unsigned(left, top, left + width, top + height), ready)
                     }
-                    Is::Bonus(..) => Ok(()),
+                    Is::Bonus(..) | Is::Exit{..} => Ok(()),
                     _ => return (None, self).show(display),
                 } {
                     Err(e) => eprintln!("{e}"),
