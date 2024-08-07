@@ -52,8 +52,10 @@ impl Game {
         let Some((play, wall)) = self.rooms.get_mut(&room) else { return Err(Box::new(PlayRoomError::UnknownRoom(room))) };
 
         let wall = wall.as_texture(&creator)?;
-
         let mut display = (display, &sprites);
+
+        play.reset(target);
+
         let animation = Animations::default();
         {
             let mut animation = animation.borrow_mut();
